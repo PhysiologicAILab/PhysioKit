@@ -73,7 +73,8 @@ class PPG(QWidget):
         global raw_ppg_signal_1, raw_ppg_signal_2
         global raw_resp, raw_eda
 
-        self.ui.spObj = serialPort()
+        self.ui.baudrate = 2000000
+        self.ui.spObj = serialPort(self.ui.baudrate )
         self.ui.ser_port_names = []
         self.ui.ser_open_status = False
         self.ui.curr_ser_port_name = ''
