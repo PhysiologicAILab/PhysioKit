@@ -79,12 +79,15 @@ class SerialCom:
         print('Enter the index of the port to be connected')
         indx = int(input()) - 1
         selected_ser_port_name = sorted_ports[indx].device
-        osname = os.uname().sysname
-        if osname == 'Darwin':
-            selected_ser_port_name = selected_ser_port_name.replace('/dev/cu', '/dev/tty')
-            print('MacOS Selected Serial Port Name:', selected_ser_port_name)
-        else:
-            print('Selected Serial Port Name:', selected_ser_port_name)
+        try:
+            osname = os.uname().sysname
+            if osname == 'Darwin':
+                selected_ser_port_name = selected_ser_port_name.replace('/dev/cu', '/dev/tty')
+                print('MacOS Selected Serial Port Name:', selected_ser_port_name)
+            else:
+                print('Selected Serial Port Name:', selected_ser_port_name)
+        except:
+            pass
 
         self.serial_port_status = self.spObj.connectPort(selected_ser_port_name)
         print("Serial port is now connected:\n" + str(self.spObj.ser))
