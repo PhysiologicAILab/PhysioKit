@@ -7,7 +7,7 @@ The PhysioKit comprise hardware and software-application layers. Its hardware co
 ## **Overview of PhysioKit**
 Below figure shows architecture of PhysioKit:
 <p align="left">
-<img src="images/architecture.png" alt="Architecture of PhysioKit" width="720"/>
+<img src="images/architecture.png" alt="Architecture of PhysioKit" width="1024"/>
 </p>
 
 ## **Installation**
@@ -25,7 +25,7 @@ python main.py
 ```
 This shall open a UI as below:
 <p align="left">
-<img src="images/user_interface.png" alt="User Interface" width="512"/>
+<img src="images/user_interface.png" alt="User Interface" width="1024"/>
 </p>
 
 ## **Citing PhysioKit**
