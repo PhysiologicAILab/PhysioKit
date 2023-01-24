@@ -5,10 +5,10 @@ import json
 
 import matplotlib.pyplot as plt
 
-from PySide6.QtWidgets import QApplication, QWidget, QGraphicsScene, QDialog, QLineEdit, QDialogButtonBox, QFormLayout
+from PySide6.QtWidgets import QApplication, QWidget, QGraphicsScene, QDialog, QLineEdit, QDialogButtonBox, QFormLayout, QFileDialog
 from PySide6.QtCore import QFile, QObject, Signal
 from PySide6.QtUiTools import QUiLoader
-from PySide6.QtGui import QFileDialog
+from PySide6 import QtGui
 
 from datetime import datetime
 import numpy as np
@@ -65,8 +65,11 @@ class PPG(QWidget):
         ui_file.open(QFile.ReadOnly)
         self.ui = loader.load(ui_file, self)
 
+        # Default params
+        self.ui.fs = 250 #sampling rate
         self.ui.baudrate = 2000000
-        self.ui.spObj = serialPort(self.ui.baudrate )
+
+        self.ui.spObj = serialPort()
         self.ui.ser_port_names = []
         self.ui.ser_open_status = False
         self.ui.curr_ser_port_name = ''
@@ -91,12 +94,9 @@ class PPG(QWidget):
         self.ui.pid = ""
         self.ui.lineEdit_PID.textChanged.connect(self.update_pid)
 
-        self.ui.pushButton_acq_params.pressed.connect(self.load_acq_params)
+        self.ui.pushButton_exp_params.pressed.connect(self.load_exp_params)
 
         self.ui.data_record_flag = False
-        self.ui.data_root_dir = os.path.join(os.getcwd(), 'data')
-        if not os.path.exists(self.ui.data_root_dir):
-            os.makedirs(self.ui.data_root_dir)
         
         self.ui.pushButton_record_data.pressed.connect(self.record_data)
         self.ui.exp_names = [self.ui.comboBox_expName.itemText(i) for i in range(self.ui.comboBox_expName.count())]
@@ -107,13 +107,7 @@ class PPG(QWidget):
         self.ui.conditions = [self.ui.listWidget_expConditions.item(x).text() for x in range(self.ui.listWidget_expConditions.count())]
         self.ui.exp_conds_dict[self.ui.curr_exp_name] = self.ui.conditions
 
-        # # Place the matplotlib figure
-        self.ui.fs = 250 #sampling rate
-        self.myFig = LivePlotFigCanvas(uiObj=self.ui)
-        self.graphic_scene = QGraphicsScene()
-        self.graphic_scene.addWidget(self.myFig)
-        self.ui.graphicsView.setScene(self.graphic_scene)
-        self.ui.graphicsView.show()
+
 
         # Add the callbackfunc
         self.ppgDataLoop = threading.Thread(name='ppgDataLoop', target=ppgDataSendLoop, daemon=True, args=(
@@ -125,13 +119,26 @@ class PPG(QWidget):
         ui_file.close()
 
 
-    def load_acq_params(self):
-        fname = QFileDialog.getOpenFileName()
+    def load_exp_params(self):
+        fname = QFileDialog.getOpenFileName()[0]
+        print(fname)
+        self.ui.label_params_file.setText(os.path.basename(fname))
+
         with open(fname) as json_file:
-            self.ui.acq_dict = json.load(json_file)
-        
-        self.ui.fs = int(self.ui.acq_dict["acq_params"]["fs"])
-        self.ui.baudrate = int(self.ui.acq_dict["acq_params"]["baudrate"])
+            self.ui.params_dict = json.load(json_file)
+
+        self.ui.fs = int(self.ui.params_dict["acq_params"]["fs"])
+        self.ui.baudrate = int(self.ui.params_dict["acq_params"]["baudrate"])
+        self.ui.data_root_dir = self.ui.params_dict["common"]["datapath"]
+        if not os.path.exists(self.ui.data_root_dir):
+            os.makedirs(self.ui.data_root_dir)
+
+        # # Place the matplotlib figure
+        self.myFig = LivePlotFigCanvas(uiObj=self.ui)
+        self.graphic_scene = QGraphicsScene()
+        self.graphic_scene.addWidget(self.myFig)
+        self.ui.graphicsView.setScene(self.graphic_scene)
+        self.ui.graphicsView.show()
 
 
     def addData_callbackFunc(self, value):
@@ -177,7 +184,7 @@ class PPG(QWidget):
 
     def connect_serial_port(self):
         if not self.ui.ser_open_status:
-            self.ui.ser_open_status = self.ui.spObj.connectPort(self.ui.curr_ser_port_name)
+            self.ui.ser_open_status = self.ui.spObj.connectPort(self.ui.curr_ser_port_name, self.ui.baudrate)
             self.ui.label_status.setText("Serial port is now connected: " + str(self.ui.spObj.ser))
             self.ui.pushButton_start_live_acquisition.setEnabled(True)
             if self.ui.ser_open_status:

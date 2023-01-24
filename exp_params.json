@@ -1,0 +1,11 @@
+{
+    "acq_params":
+    {
+        "fs":250.0,
+        "baudrate":2000000
+    },
+    "common":
+    {
+        "datapath":"data"
+    }
+}
