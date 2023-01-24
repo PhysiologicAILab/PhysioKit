@@ -16,9 +16,7 @@ import numpy as np
 
 # from matplotlib.backends.backend_qt5agg import FigureCanvasQTAgg as FigureCanvas
 from matplotlib.backends.backend_qtagg import FigureCanvasQTAgg as FigureCanvas
-# from matplotlib.lines import Line2D
 from matplotlib.animation import TimedAnimation
-# from matplotlib.figure import Figure
 
 import os
 import numpy as np
@@ -27,7 +25,6 @@ import csv
 from utils.data_processing_lib import lFilter, lFilter_moving_average
 from utils.devices import serialPort
 from datetime import datetime
-# import calendar 
 
 global live_acquisition_flag
 live_acquisition_flag = False
