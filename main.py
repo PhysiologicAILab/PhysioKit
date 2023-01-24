@@ -119,18 +119,24 @@ class PPG(QWidget):
 
     def load_exp_params(self):
         fname = QFileDialog.getOpenFileName(filter='*.json')[0]
-        print(fname)
         self.ui.label_params_file.setText(os.path.basename(fname))
 
-        with open(fname) as json_file:
-            self.ui.params_dict = json.load(json_file)
+        try:
+            with open(fname) as json_file:
+                self.ui.params_dict = json.load(json_file)
 
-        self.ui.fs = int(self.ui.params_dict["acq_params"]["fs"])
-        self.ui.baudrate = int(self.ui.params_dict["acq_params"]["baudrate"])
-        self.ui.data_root_dir = self.ui.params_dict["common"]["datapath"]
-        if not os.path.exists(self.ui.data_root_dir):
-            os.makedirs(self.ui.data_root_dir)
-
+            self.ui.fs = int(self.ui.params_dict["acq_params"]["fs"])
+            self.ui.baudrate = int(self.ui.params_dict["acq_params"]["baudrate"])
+            self.ui.data_root_dir = self.ui.params_dict["common"]["datapath"]
+            if not os.path.exists(self.ui.data_root_dir):
+                os.makedirs(self.ui.data_root_dir)
+            
+            self.ui.label_status.setText("Loaded experiment parameters successfully")
+        
+        except:
+            self.ui.label_status.setText("Error loading parameters")
+            return
+        
         # # Place the matplotlib figure
         self.myFig = LivePlotFigCanvas(uiObj=self.ui)
         self.graphic_scene = QGraphicsScene()
@@ -181,14 +187,16 @@ class PPG(QWidget):
     def update_pid(self, text):
         self.ui.pid = text
 
+
     def update_event_code(self, text):
         try:
             self.ui.eventcode = int(text)
         except:
-            print("Incorrect entry for evencode, using eventcode = 0")
+            self.ui.label_status.setText("Incorrect entry for evencode, using eventcode = 0")
             self.ui.eventcode = 0
 
     def toggle_marking(self):
+        self.myFig.event_toggle = True
         if not self.ui.event_status:
             self.ui.event_status = True
             self.ui.pushButton_Event.setText("Stop Marking")
@@ -200,6 +208,7 @@ class PPG(QWidget):
     def update_serial_port(self):
         self.ui.curr_ser_port_name = self.ui.ser_port_names[self.ui.comboBox_comport.currentIndex()]
         self.ui.label_status.setText("Serial port specified: " + self.ui.curr_ser_port_name)
+
 
     def connect_serial_port(self):
         if not self.ui.ser_open_status:
@@ -246,12 +255,13 @@ class PPG(QWidget):
             self.ui.comboBox_expName.setEnabled(True)
             self.ui.listWidget_expConditions.setEnabled(True)
 
+    
     def update_exp_condition(self):
         self.ui.curr_exp_condition = self.ui.conditions[self.ui.listWidget_expConditions.currentRow()]
         self.ui.label_status.setText("Experiment Condition Selected: " + self.ui.curr_exp_condition)
 
+    
     def record_data(self):
-
         if not self.ui.data_record_flag:
             self.ui.data_record_flag = True
 
@@ -273,7 +283,7 @@ class PPG(QWidget):
             try:
                 self.ui.eventcode = int(self.ui.lineEdit_Event.text())
             except:
-                print("Incorrect entry for evencode, using eventcode = 0")
+                self.ui.label_status.setText("Incorrect entry for evencode, using eventcode = 0")
                 self.ui.eventcode = 0
 
         else:
@@ -295,6 +305,7 @@ class LivePlotFigCanvas(FigureCanvas, TimedAnimation):
         self.max_time = 20 # 30 second time window
         self.measure_time = 1  # moving max_time sample by 1 sec.
         self.count_frame = 0
+        self.event_toggle = False
         
         resp_lowcut = 0.1
         resp_highcut = 0.4
@@ -322,7 +333,7 @@ class LivePlotFigCanvas(FigureCanvas, TimedAnimation):
         self.fig, self.ax = plt.subplots(2, 2, figsize = (12.5, 7), layout="constrained")
 
         # self.ax[0, 0] settings
-        (self.line1,) = self.ax[0, 0].plot(self.x_axis, self.eda_plot_signal, 'r', markersize=10)
+        (self.line1,) = self.ax[0, 0].plot(self.x_axis, self.eda_plot_signal, 'b', markersize=10, linestyle='solid')
         self.ax[0, 0].set_xlabel('Time (seconds)', fontsize=16)
         self.ax[0, 0].set_ylabel('EDA', fontsize=16)
         self.ax[0, 0].set_xlim(0, self.max_time)
@@ -331,7 +342,7 @@ class LivePlotFigCanvas(FigureCanvas, TimedAnimation):
         self.ax[0, 0].xaxis.set_ticks_position('bottom')
 
         # self.ax[0, 1] settings
-        (self.line2,) = self.ax[0, 1].plot(self.x_axis, self.resp_plot_signal, 'g', markersize=10)
+        (self.line2,) = self.ax[0, 1].plot(self.x_axis, self.resp_plot_signal, 'g', markersize=10, linestyle='solid')
         self.ax[0, 1].set_xlabel('Time (seconds)', fontsize=16)
         self.ax[0, 1].set_ylabel('Resp', fontsize=16)
         self.ax[0, 1].set_xlim(0, self.max_time)
@@ -340,7 +351,7 @@ class LivePlotFigCanvas(FigureCanvas, TimedAnimation):
         self.ax[0, 1].xaxis.set_ticks_position('bottom')
 
         # self.ax[1, 0] settings
-        (self.line3,) = self.ax[1, 0].plot(self.x_axis, self.ppg1_plot_signal, 'b', markersize=10)
+        (self.line3,) = self.ax[1, 0].plot(self.x_axis, self.ppg1_plot_signal, 'r', markersize=10, linestyle='solid')
         self.ax[1, 0].set_xlabel('Time (seconds)', fontsize=16)
         self.ax[1, 0].set_ylabel('PPG-Finger', fontsize=16)
         self.ax[1, 0].set_xlim(0, self.max_time)
@@ -349,7 +360,7 @@ class LivePlotFigCanvas(FigureCanvas, TimedAnimation):
         self.ax[1, 0].xaxis.set_ticks_position('bottom')
 
         # self.ax[1, 1] settings
-        (self.line4,) = self.ax[1, 1].plot(self.x_axis, self.ppg2_plot_signal, 'm', markersize=10)
+        (self.line4,) = self.ax[1, 1].plot(self.x_axis, self.ppg2_plot_signal, 'm', markersize=10, linestyle='solid')
         self.ax[1, 1].set_xlabel('Time (seconds)', fontsize=16)
         self.ax[1, 1].set_ylabel('PPG-Ear', fontsize=16)
         self.ax[1, 1].set_xlim(0, self.max_time)
@@ -358,7 +369,7 @@ class LivePlotFigCanvas(FigureCanvas, TimedAnimation):
         self.ax[1, 1].xaxis.set_ticks_position('bottom')
 
         FigureCanvas.__init__(self, self.fig)
-        TimedAnimation.__init__(self, self.fig, interval=int(round(10*1000.0/self.uiObj.fs)), blit = True)
+        TimedAnimation.__init__(self, self.fig, interval=int(round(10*1000.0/self.uiObj.fs)), blit = True)  # figure update frequency: 1/10th of sampling rate
         return
 
 
@@ -397,24 +408,26 @@ class LivePlotFigCanvas(FigureCanvas, TimedAnimation):
 
 
     def addData(self, value):
-        self.count_frame += 1
+        global live_acquisition_flag
         eda_val, resp_val, ppg1_val, ppg2_val, _ = value
         eda_filtered = self.eda_filt_obj.lfilt(eda_val)
         resp_filtered = self.resp_filt_obj.lfilt(resp_val)
         ppg1_filtered = self.ppg1_filt_obj.lfilt(ppg1_val)
         ppg2_filtered = self.ppg2_filt_obj.lfilt(ppg2_val)
 
-        self.eda_plot_signal = np.roll(self.eda_plot_signal, -1)
-        self.eda_plot_signal[-1] = eda_filtered
+        if live_acquisition_flag: 
+            self.count_frame += 1
+            self.eda_plot_signal = np.roll(self.eda_plot_signal, -1)
+            self.eda_plot_signal[-1] = eda_filtered
 
-        self.resp_plot_signal = np.roll(self.resp_plot_signal, -1)
-        self.resp_plot_signal[-1] = resp_filtered
+            self.resp_plot_signal = np.roll(self.resp_plot_signal, -1)
+            self.resp_plot_signal[-1] = resp_filtered
 
-        self.ppg1_plot_signal = np.roll(self.ppg1_plot_signal, -1)
-        self.ppg1_plot_signal[-1] = ppg1_filtered
+            self.ppg1_plot_signal = np.roll(self.ppg1_plot_signal, -1)
+            self.ppg1_plot_signal[-1] = ppg1_filtered
 
-        self.ppg2_plot_signal = np.roll(self.ppg2_plot_signal, -1)
-        self.ppg2_plot_signal[-1] = ppg2_filtered
+            self.ppg2_plot_signal = np.roll(self.ppg2_plot_signal, -1)
+            self.ppg2_plot_signal[-1] = ppg2_filtered
 
         return
 
@@ -440,6 +453,19 @@ class LivePlotFigCanvas(FigureCanvas, TimedAnimation):
                 self.ax[0, 1].set_ylim(np.min(self.resp_plot_signal), np.max(self.resp_plot_signal))
                 self.ax[1, 0].set_ylim(np.min(self.ppg1_plot_signal), np.max(self.ppg1_plot_signal))
                 self.ax[1, 1].set_ylim(np.min(self.ppg2_plot_signal), np.max(self.ppg2_plot_signal))
+
+            if self.event_toggle:
+                if self.uiObj.event_status:
+                    self.line1.set_linestyle((0, (5, 5)))
+                    self.line2.set_linestyle((0, (5, 5)))
+                    self.line3.set_linestyle((0, (5, 5)))
+                    self.line4.set_linestyle((0, (5, 5)))
+                else:
+                    self.line1.set_linestyle((0, ()))
+                    self.line2.set_linestyle((0, ()))
+                    self.line3.set_linestyle((0, ()))
+                    self.line4.set_linestyle((0, ()))
+                self.event_toggle = False
 
             self.line1.set_ydata(self.eda_plot_signal)
             self.line2.set_ydata(self.resp_plot_signal)

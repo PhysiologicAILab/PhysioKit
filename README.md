@@ -19,14 +19,16 @@ activate your virtual environment
 
 run: pip install -r requirements.txt in your shell.
 
-## **Terminal command to execute the program**
+
+## **Launching the PhysioKit Interface**
 ``` bash
 python main.py
 ```
-This shall open a UI as below:
+This shall open user interface, basic functioning of which is shown in this demo:
 <p align="left">
-<img src="images/user_interface.png" alt="User Interface" width="1024"/>
+    <img src="images/PhysioKitDemo.gif" alt="Demo of PhysioKit" width="720"/>
 </p>
+
 
 ## **Citing PhysioKit**
 Jitesh Joshi, Katherine Wang, and Youngjun Cho. 2023. PhysioKit: Open-source, Accessible Physiological Computing Toolkit. *In Review*
