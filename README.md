@@ -29,4 +29,4 @@ This shall open a UI as below:
 </p>
 
 ## **Citing PhysioKit**
-Jitesh Joshi, Katherine Wang, and Youngjun Cho. 2023. PhysioKit: Open-source, Accessible Physiological Computing Toolkit. </i In Review >
+Jitesh Joshi, Katherine Wang, and Youngjun Cho. 2023. PhysioKit: Open-source, Accessible Physiological Computing Toolkit. *In Review*
