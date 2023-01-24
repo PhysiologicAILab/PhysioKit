@@ -6,6 +6,6 @@
     },
     "common":
     {
-        "datapath":"data"
+        "datapath":"C:/Users/YCLab/Dev/data/PhysioKitData"
     }
 }
