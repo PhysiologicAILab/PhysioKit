@@ -122,7 +122,7 @@ class PPG(QWidget):
 
 
     def load_exp_params(self):
-        fname = QFileDialog.getOpenFileName()[0]
+        fname = QFileDialog.getOpenFileName(filter='*.json')[0]
         print(fname)
         self.ui.label_params_file.setText(os.path.basename(fname))
 
