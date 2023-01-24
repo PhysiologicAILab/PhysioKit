@@ -195,11 +195,9 @@ class PPG(QWidget):
         else:
             self.ui.label_status.setText("Live acquisition stopped.")
             # To reset the graph and clear the values
-            self.myFig.ppg1_plot_signal = (self.myFig.x_axis * 0.0) + 50
-            self.myFig.ppg2_plot_signal = (self.myFig.x_axis * 0.0) + 50
-            self.myFig.resp_plot_signal = (self.myFig.x_axis * 0.0) + 50
-            self.myFig.eda_plot_signal = (self.myFig.x_axis * 0.0) + 50
-
+            
+            self.myFig.reset_draw()
+            
             live_acquisition_flag = False
             self.ui.pushButton_record_data.setEnabled(False)
             self.ui.pushButton_start_live_acquisition.setText('Start Live Acquisition')
@@ -239,80 +237,92 @@ class LivePlotFigCanvas(FigureCanvas, TimedAnimation):
     def __init__(self, uiObj):
         self.uiObj = uiObj
         self.exception_count = 0
-        # print(matplotlib.__version__)
+        print("__init__ called")
         # The data
         self.max_time = 20 # 30 second time window
         self.measure_time = 1  # moving max_time sample by 1 sec.
-        self.normalizing_time = 10  # moving max_time sample by 1 sec.
-        self.xlim = self.max_time*self.uiObj.fs
-        self.x_axis = np.linspace(0, self.xlim - 1, self.xlim)
-        self.ppg1_plot_signal = (self.x_axis * 0.0) + 50
-        self.ppg2_plot_signal = (self.x_axis * 0.0) + 50
-        self.resp_plot_signal = (self.x_axis * 0.0) + 50
-        self.eda_plot_signal = (self.x_axis * 0.0) + 50
-        self.x_axis = self.x_axis/self.uiObj.fs
+        self.count_frame = 0
+        
+        resp_lowcut = 0.1
+        resp_highcut = 0.4
+        ppg_lowcut = 0.8
+        ppg_highcut = 3.5
+        filt_order = 2
+        moving_average_window_size = int(self.uiObj.fs/4.0)
+        self.eda_filt_obj = lFilter_moving_average(window_size=moving_average_window_size)
+        self.resp_filt_obj = lFilter(resp_lowcut, resp_highcut, self.uiObj.fs, order=filt_order)
+        self.ppg1_filt_obj = lFilter(ppg_lowcut, ppg_highcut, self.uiObj.fs, order=filt_order)
+        self.ppg2_filt_obj = lFilter(ppg_lowcut, ppg_highcut, self.uiObj.fs, order=filt_order)
+
+        self.x_axis = np.linspace(0, self.max_time, self.max_time*self.uiObj.fs)
+        self.eda_plot_signal = 1000 * np.ones(self.max_time * self.uiObj.fs)
+        self.resp_plot_signal = 1000 * np.ones(self.max_time * self.uiObj.fs)
+        self.ppg1_plot_signal = 1000 * np.ones(self.max_time * self.uiObj.fs)
+        self.ppg2_plot_signal = 1000 * np.ones(self.max_time * self.uiObj.fs)
+
+        eda_temp = [self.eda_filt_obj.lfilt(d) for d in self.eda_plot_signal]
+        resp_temp = [self.resp_filt_obj.lfilt(d) for d in self.resp_plot_signal]
+        ppg1_temp = [self.ppg1_filt_obj.lfilt(d) for d in self.ppg1_plot_signal]
+        ppg2_temp = [self.ppg2_filt_obj.lfilt(d) for d in self.ppg2_plot_signal]
+
         # The window
-        self.fig = Figure(figsize=(16,12), dpi=75, tight_layout=True)
-        # self.fig = Figure(tight_layout=True)
+        self.fig, self.ax = plt.subplots(2, 2, figsize = (12.5, 7), layout="constrained")
 
-        self.ax1 = self.fig.add_subplot(3, 1, 1)
-        # self.ax1 settings
-        self.ax1.set_xlabel('Time (seconds)', fontsize=24)
-        self.ax1.set_ylabel('PPG Signal', fontsize=24)
-        self.line1 = Line2D([], [], color='blue')
-        self.ax1.add_line(self.line1)
-        self.ax1.set_xlim(0, self.max_time)
-        # self.ax1.autoscale(enable=True, axis='y', tight=True)
-        self.ax1.set_ylim(-100, 200)
+        # self.ax[0, 0] settings
+        (self.line1,) = self.ax[0, 0].plot(self.x_axis, self.eda_plot_signal, 'b', markersize=10)
+        self.ax[0, 0].set_xlabel('Time (seconds)', fontsize=16)
+        self.ax[0, 0].set_ylabel('EDA', fontsize=16)
+        self.ax[0, 0].set_xlim(0, self.max_time)
+        self.ax[0, 0].set_ylim(0, 1)
+        self.ax[0, 0].yaxis.set_ticks_position('left')
+        self.ax[0, 0].xaxis.set_ticks_position('bottom')
 
-        # # Hide the right and top spines
-        # self.ax1.spines['right'].set_visible(False)
-        # self.ax1.spines['top'].set_visible(False)
+        # self.ax[0, 1] settings
+        (self.line2,) = self.ax[0, 1].plot(self.x_axis, self.resp_plot_signal, 'b', markersize=10)
+        self.ax[0, 1].set_xlabel('Time (seconds)', fontsize=16)
+        self.ax[0, 1].set_ylabel('Resp', fontsize=16)
+        self.ax[0, 1].set_xlim(0, self.max_time)
+        self.ax[0, 1].set_ylim(0, 1)
+        self.ax[0, 1].yaxis.set_ticks_position('left')
+        self.ax[0, 1].xaxis.set_ticks_position('bottom')
 
-        # Only show ticks on the left and bottom spines
-        self.ax1.yaxis.set_ticks_position('left')
-        self.ax1.xaxis.set_ticks_position('bottom')
+        # self.ax[1, 0] settings
+        (self.line3,) = self.ax[1, 0].plot(self.x_axis, self.ppg1_plot_signal, 'b', markersize=10)
+        self.ax[1, 0].set_xlabel('Time (seconds)', fontsize=16)
+        self.ax[1, 0].set_ylabel('PPG-Finger', fontsize=16)
+        self.ax[1, 0].set_xlim(0, self.max_time)
+        self.ax[1, 0].set_ylim(0, 1)
+        self.ax[1, 0].yaxis.set_ticks_position('left')
+        self.ax[1, 0].xaxis.set_ticks_position('bottom')
 
-
-        self.ax2 = self.fig.add_subplot(3, 1, 2)
-        # self.ax2 settings
-        self.ax2.set_xlabel('Time (seconds)', fontsize=24)
-        self.ax2.set_ylabel('Respiratory Signal', fontsize=24)
-        self.line2 = Line2D([], [], color='blue')
-        self.ax2.add_line(self.line2)
-        self.ax2.set_xlim(0, self.max_time)
-        # self.ax2.autoscale(enable=True, axis='y', tight=True)
-        self.ax2.set_ylim(-100, 200)
-
-        # # Hide the right and top spines
-        # self.ax2.spines['right'].set_visible(False)
-        # self.ax2.spines['top'].set_visible(False)
-
-        # Only show ticks on the left and bottom spines
-        self.ax2.yaxis.set_ticks_position('left')
-        self.ax2.xaxis.set_ticks_position('bottom')
-
-
-        self.ax3 = self.fig.add_subplot(3, 1, 3)
-        # self.ax3 settings
-        self.ax3.set_xlabel('Time (seconds)', fontsize=24)
-        self.ax3.set_ylabel('Electrodermal Activity Signal', fontsize=24)
-        self.line3 = Line2D([], [], color='blue')
-        self.ax3.add_line(self.line3)
-        self.ax3.set_xlim(0, self.max_time)
-        # self.ax3.autoscale(enable=True, axis='y', tight=True)
-        self.ax3.set_ylim(-100, 200)
-
-        # # Hide the right and top spines
-        # self.ax3.spines['right'].set_visible(False)
-        # self.ax3.spines['top'].set_visible(False)
-
-        # Only show ticks on the left and bottom spines
-        self.ax3.yaxis.set_ticks_position('left')
-        self.ax3.xaxis.set_ticks_position('bottom')
+        # self.ax[1, 1] settings
+        (self.line4,) = self.ax[1, 1].plot(self.x_axis, self.ppg2_plot_signal, 'b', markersize=10)
+        self.ax[1, 1].set_xlabel('Time (seconds)', fontsize=16)
+        self.ax[1, 1].set_ylabel('PPG-Ear', fontsize=16)
+        self.ax[1, 1].set_xlim(0, self.max_time)
+        self.ax[1, 1].set_ylim(0, 1)
+        self.ax[1, 1].yaxis.set_ticks_position('left')
+        self.ax[1, 1].xaxis.set_ticks_position('bottom')
 
         FigureCanvas.__init__(self, self.fig)
-        TimedAnimation.__init__(self, self.fig, interval=int(round(1000.0/self.uiObj.fs)), blit = True)
+        TimedAnimation.__init__(self, self.fig, interval=int(round(4*1000.0/self.uiObj.fs)), blit = True)
+        return
+
+
+    def new_frame_seq(self):
+        return iter(range(int(self.max_time * self.uiObj.fs)))
+
+    def _init_draw(self):
+        return (self.line1, self.line2, self.line3, self.line4, )
+
+    def reset_draw(self):
+        self.count_frame = 0 # self.max_time * self.uiObj.fs
+
+        self.x_axis = np.linspace(0, self.max_time, self.max_time*self.uiObj.fs)
+        self.eda_plot_signal = 1000 * np.ones(self.max_time * self.uiObj.fs)
+        self.resp_plot_signal = 1000 * np.ones(self.max_time * self.uiObj.fs)
+        self.ppg1_plot_signal = 1000 * np.ones(self.max_time * self.uiObj.fs)
+        self.ppg2_plot_signal = 1000 * np.ones(self.max_time * self.uiObj.fs)
 
         resp_lowcut = 0.1
         resp_highcut = 0.4
@@ -324,25 +334,22 @@ class LivePlotFigCanvas(FigureCanvas, TimedAnimation):
         self.ppg2_filt_obj = lFilter(ppg_lowcut, ppg_highcut, self.uiObj.fs, order=filt_order)
         self.resp_filt_obj = lFilter(resp_lowcut, resp_highcut, self.uiObj.fs, order=filt_order)
         self.eda_filt_obj = lFilter_moving_average(window_size=moving_average_window_size)
-        self.count_frame = 0 # self.max_time * self.uiObj.fs
+
+        temp_eda = [self.eda_filt_obj.lfilt(d) for d in self.eda_plot_signal]
+        temp_resp = [self.resp_filt_obj.lfilt(d) for d in self.resp_plot_signal]
+        temp_ppg1 = [self.ppg1_filt_obj.lfilt(d) for d in self.ppg1_plot_signal]
+        temp_ppg2 = [self.ppg2_filt_obj.lfilt(d) for d in self.ppg2_plot_signal]
+
         return
 
-    def new_frame_seq(self):
-        return iter(range(self.x_axis.size))
-
-    def _init_draw(self):
-        lines = [self.line1, self.line2, self.line3]
-        for l in lines:
-            l.set_data([], [])
-        return
 
     def addData(self, value):
         self.count_frame += 1
         eda_val, resp_val, ppg1_val, ppg2_val, _ = value
+        eda_filtered = self.eda_filt_obj.lfilt(eda_val)
+        resp_filtered = self.resp_filt_obj.lfilt(resp_val)
         ppg1_filtered = self.ppg1_filt_obj.lfilt(ppg1_val)
         ppg2_filtered = self.ppg2_filt_obj.lfilt(ppg2_val)
-        resp_filtered = self.resp_filt_obj.lfilt(resp_val)
-        eda_filtered = self.eda_filt_obj.lfilt(eda_val)
 
         self.eda_plot_signal = np.roll(self.eda_plot_signal, -1)
         self.eda_plot_signal[-1] = eda_filtered
@@ -376,19 +383,17 @@ class LivePlotFigCanvas(FigureCanvas, TimedAnimation):
 
             if self.count_frame >= (self.measure_time * self.uiObj.fs):
                 self.count_frame = 0
-                # self.ax1.autoscale(axis='y', tight=True)
-                # self.ax2.autoscale(axis='y', tight=True)
-                # self.ax3.autoscale(axis='y', tight=True)
+                self.ax[0, 0].set_ylim(np.min(self.eda_plot_signal), np.max(self.eda_plot_signal))
+                self.ax[0, 1].set_ylim(np.min(self.resp_plot_signal), np.max(self.resp_plot_signal))
+                self.ax[1, 0].set_ylim(np.min(self.ppg1_plot_signal), np.max(self.ppg1_plot_signal))
+                self.ax[1, 1].set_ylim(np.min(self.ppg2_plot_signal), np.max(self.ppg2_plot_signal))
 
-                self.ax1.set_ylim(np.min(self.ppg1_plot_signal), np.max(self.ppg1_plot_signal))
-                self.ax2.set_ylim(np.min(self.resp_plot_signal), np.max(self.resp_plot_signal))
-                self.ax3.set_ylim(np.min(self.eda_plot_signal), np.max(self.eda_plot_signal))
-
-            self.line1.set_ydata(self.ppg1_plot_signal)
+            self.line1.set_ydata(self.eda_plot_signal)
             self.line2.set_ydata(self.resp_plot_signal)
-            self.line3.set_ydata(self.eda_plot_signal)
+            self.line3.set_ydata(self.ppg1_plot_signal)
+            self.line4.set_ydata(self.ppg2_plot_signal)
 
-            self._drawn_artists = [self.line1, self.line2, self.line3, ]
+            self._drawn_artists = [self.line1, self.line2, self.line3, self.line4]
 
         return
 
@@ -412,12 +417,16 @@ def ppgDataSendLoop(addData_callbackFunc, spObj):
     buffersize = 1024
 
     while(True):
-        if live_acquisition_flag:
+        if live_acquisition_flag and spObj.ser.is_open:
             #Read data from serial port
-            serial_data = spObj.ser.readline(buffersize)
-            serial_data = serial_data.split(b'\r\n')
-            serial_data = serial_data[0].split(b',')
-            #print(serial_data)
+            try:
+                serial_data = spObj.ser.readline(buffersize)
+                serial_data = serial_data.split(b'\r\n')
+                serial_data = serial_data[0].split(b',')
+                #print(serial_data)
+            except:
+                serial_data = []
+                print('Serial port not open')
 
             if len(serial_data) == 5:
                 try:
