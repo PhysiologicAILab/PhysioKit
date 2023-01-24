@@ -1,31 +1,33 @@
 # This Python file uses the following encoding: utf-8
 import threading
 import time
+import json
 
 import matplotlib.pyplot as plt
 
 from PySide6.QtWidgets import QApplication, QWidget, QGraphicsScene, QDialog, QLineEdit, QDialogButtonBox, QFormLayout
 from PySide6.QtCore import QFile, QObject, Signal
 from PySide6.QtUiTools import QUiLoader
+from PySide6.QtGui import QFileDialog
 
 from datetime import datetime
 import numpy as np
-from utils.data_processing_lib import lFilter, lFilter_moving_average
-import heartpy as hp
+# import heartpy as hp
 
 # from matplotlib.backends.backend_qt5agg import FigureCanvasQTAgg as FigureCanvas
 from matplotlib.backends.backend_qtagg import FigureCanvasQTAgg as FigureCanvas
-from matplotlib.lines import Line2D
+# from matplotlib.lines import Line2D
 from matplotlib.animation import TimedAnimation
-from matplotlib.figure import Figure
+# from matplotlib.figure import Figure
 
 import os
 import numpy as np
 import csv
 
-from devices import serialPort
+from utils.data_processing_lib import lFilter, lFilter_moving_average
+from utils.devices import serialPort
 from datetime import datetime
-import calendar 
+# import calendar 
 
 global live_acquisition_flag
 live_acquisition_flag = False
@@ -89,6 +91,8 @@ class PPG(QWidget):
         self.ui.pid = ""
         self.ui.lineEdit_PID.textChanged.connect(self.update_pid)
 
+        self.ui.pushButton_acq_params.pressed.connect(self.load_acq_params)
+
         self.ui.data_record_flag = False
         self.ui.data_root_dir = os.path.join(os.getcwd(), 'data')
         if not os.path.exists(self.ui.data_root_dir):
@@ -119,6 +123,16 @@ class PPG(QWidget):
         self.ui.curr_exp_condition = self.ui.conditions[0]
 
         ui_file.close()
+
+
+    def load_acq_params(self):
+        fname = QFileDialog.getOpenFileName()
+        with open(fname) as json_file:
+            self.ui.acq_dict = json.load(json_file)
+        
+        self.ui.fs = int(self.ui.acq_dict["acq_params"]["fs"])
+        self.ui.baudrate = int(self.ui.acq_dict["acq_params"]["baudrate"])
+
 
     def addData_callbackFunc(self, value):
         # print("Add data: " + str(value))
@@ -237,7 +251,7 @@ class LivePlotFigCanvas(FigureCanvas, TimedAnimation):
     def __init__(self, uiObj):
         self.uiObj = uiObj
         self.exception_count = 0
-        print("__init__ called")
+
         # The data
         self.max_time = 20 # 30 second time window
         self.measure_time = 1  # moving max_time sample by 1 sec.
@@ -269,7 +283,7 @@ class LivePlotFigCanvas(FigureCanvas, TimedAnimation):
         self.fig, self.ax = plt.subplots(2, 2, figsize = (12.5, 7), layout="constrained")
 
         # self.ax[0, 0] settings
-        (self.line1,) = self.ax[0, 0].plot(self.x_axis, self.eda_plot_signal, 'b', markersize=10)
+        (self.line1,) = self.ax[0, 0].plot(self.x_axis, self.eda_plot_signal, 'r', markersize=10)
         self.ax[0, 0].set_xlabel('Time (seconds)', fontsize=16)
         self.ax[0, 0].set_ylabel('EDA', fontsize=16)
         self.ax[0, 0].set_xlim(0, self.max_time)
@@ -278,7 +292,7 @@ class LivePlotFigCanvas(FigureCanvas, TimedAnimation):
         self.ax[0, 0].xaxis.set_ticks_position('bottom')
 
         # self.ax[0, 1] settings
-        (self.line2,) = self.ax[0, 1].plot(self.x_axis, self.resp_plot_signal, 'b', markersize=10)
+        (self.line2,) = self.ax[0, 1].plot(self.x_axis, self.resp_plot_signal, 'g', markersize=10)
         self.ax[0, 1].set_xlabel('Time (seconds)', fontsize=16)
         self.ax[0, 1].set_ylabel('Resp', fontsize=16)
         self.ax[0, 1].set_xlim(0, self.max_time)
@@ -296,7 +310,7 @@ class LivePlotFigCanvas(FigureCanvas, TimedAnimation):
         self.ax[1, 0].xaxis.set_ticks_position('bottom')
 
         # self.ax[1, 1] settings
-        (self.line4,) = self.ax[1, 1].plot(self.x_axis, self.ppg2_plot_signal, 'b', markersize=10)
+        (self.line4,) = self.ax[1, 1].plot(self.x_axis, self.ppg2_plot_signal, 'm', markersize=10)
         self.ax[1, 1].set_xlabel('Time (seconds)', fontsize=16)
         self.ax[1, 1].set_ylabel('PPG-Ear', fontsize=16)
         self.ax[1, 1].set_xlim(0, self.max_time)
@@ -305,7 +319,7 @@ class LivePlotFigCanvas(FigureCanvas, TimedAnimation):
         self.ax[1, 1].xaxis.set_ticks_position('bottom')
 
         FigureCanvas.__init__(self, self.fig)
-        TimedAnimation.__init__(self, self.fig, interval=int(round(4*1000.0/self.uiObj.fs)), blit = True)
+        TimedAnimation.__init__(self, self.fig, interval=int(round(10*1000.0/self.uiObj.fs)), blit = True)
         return
 
 
