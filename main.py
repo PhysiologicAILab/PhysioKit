@@ -8,7 +8,6 @@ import matplotlib.pyplot as plt
 from PySide6.QtWidgets import QApplication, QWidget, QGraphicsScene, QDialog, QLineEdit, QDialogButtonBox, QFormLayout, QFileDialog
 from PySide6.QtCore import QFile, QObject, Signal
 from PySide6.QtUiTools import QUiLoader
-from PySide6 import QtGui
 
 from datetime import datetime
 import numpy as np
