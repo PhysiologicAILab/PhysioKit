@@ -102,11 +102,13 @@ class PPG(QWidget):
         self.ui.exp_names = [self.ui.comboBox_expName.itemText(i) for i in range(self.ui.comboBox_expName.count())]
         self.ui.utc_timestamp_featDict = datetime.utcnow()
 
+        self.ui.lineEdit_Event.textChanged.connect(self.update_event_code)
+        self.ui.pushButton_Event.pressed.connect(self.toggle_marking)
+
         self.ui.curr_exp_name = self.ui.exp_names[0]
         self.ui.exp_conds_dict = {}
         self.ui.conditions = [self.ui.listWidget_expConditions.item(x).text() for x in range(self.ui.listWidget_expConditions.count())]
         self.ui.exp_conds_dict[self.ui.curr_exp_name] = self.ui.conditions
-
 
 
         # Add the callbackfunc
@@ -147,8 +149,13 @@ class PPG(QWidget):
         
         if self.ui.data_record_flag:
             eda_val, resp_val, ppg1_val, ppg2_val, ts_val = value
-            self.writer.writerow([eda_val, resp_val, ppg1_val, ppg2_val, ts_val])
+
+            if self.ui.event_status:
+                self.writer.writerow([eda_val, resp_val, ppg1_val, ppg2_val, ts_val, self.ui.eventcode])
+            else:
+                self.writer.writerow([eda_val, resp_val, ppg1_val, ppg2_val, ts_val, ''])
         return
+
 
     def add_exp(self):
         exp_dlg = InputDialog()
@@ -177,6 +184,22 @@ class PPG(QWidget):
 
     def update_pid(self, text):
         self.ui.pid = text
+
+    def update_event_code(self, text):
+        try:
+            self.ui.eventcode = int(text)
+        except:
+            print("Incorrect entry for evencode, using eventcode = 0")
+            self.ui.eventcode = 0
+
+    def toggle_marking(self):
+        if not self.ui.event_status:
+            self.ui.event_status = True
+            self.ui.pushButton_Event.setText("Stop Marking")
+        else:
+            self.ui.event_status = False
+            self.ui.pushButton_Event.setText("Start Marking")
+
 
     def update_serial_port(self):
         self.ui.curr_ser_port_name = self.ui.ser_port_names[self.ui.comboBox_comport.currentIndex()]
@@ -242,16 +265,29 @@ class PPG(QWidget):
 
             self.csvfile = open(self.save_file_path, 'w', encoding="utf", newline="")
             self.writer = csv.writer(self.csvfile)
-            self.writer.writerow(["eda", "resp", "ppg1", "ppg2", "arduino_ts"])
+            self.writer.writerow(["eda", "resp", "ppg1", "ppg2", "arduino_ts", "event_code"])
 
             # self.ui.utc_timestamp_signal = datetime.utcnow()
             self.ui.pushButton_record_data.setText("Stop Recording")
             self.ui.label_status.setText("Recording started for: Exp - " + self.ui.curr_exp_name + "; Condition - " + self.ui.curr_exp_condition)
+
+            self.ui.lineEdit_Event.setEnabled(True)
+            self.ui.pushButton_Event.setEnabled(True)
+            self.ui.event_status = False
+            try:
+                self.ui.eventcode = int(self.ui.lineEdit_Event.text())
+            except:
+                print("Incorrect entry for evencode, using eventcode = 0")
+                self.ui.eventcode = 0
+
         else:
             self.csvfile.close()
             self.ui.data_record_flag = False
             self.ui.pushButton_record_data.setText("Start Recording")
             self.ui.label_status.setText("Recording stopped and data saved for: Exp - " + self.ui.curr_exp_name + "; Condition - " + self.ui.curr_exp_condition)
+            self.ui.lineEdit_Event.setEnabled(False)
+            self.ui.pushButton_Event.setEnabled(False)
+            self.ui.event_status = False
 
 
 class LivePlotFigCanvas(FigureCanvas, TimedAnimation):
