@@ -7,7 +7,7 @@ The PhysioKit comprise hardware and software-application layers. Its hardware co
 ## **Overview of PhysioKit**
 Below figure shows architecture of PhysioKit:
 <p align="left">
-<img src="images/architecture.png" alt="Architecture of PhysioKit" width="512"/>
+<img src="images/architecture.png" alt="Architecture of PhysioKit" width="720"/>
 </p>
 
 ## **Installation**
@@ -28,3 +28,5 @@ This shall open a UI as below:
 <img src="images/user_interface.png" alt="User Interface" width="512"/>
 </p>
 
+## **Citing PhysioKit**
+Jitesh Joshi, Katherine Wang, and Youngjun Cho. 2023. PhysioKit: Open-source, Accessible Physiological Computing Toolkit. </i In Review >
