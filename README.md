@@ -26,7 +26,7 @@ python main.py
 ```
 This shall open user interface, basic functioning of which is shown in this demo:
 <p align="left">
-    <img src="images/PhysioKitDemo.gif" alt="Demo of PhysioKit" width="720"/>
+    <img src="images/PhysioKitDemo.gif" alt="Demo of PhysioKit" width="1024"/>
 </p>
 
 
