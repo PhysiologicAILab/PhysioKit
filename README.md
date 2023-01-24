@@ -15,10 +15,11 @@ run: pip install -r requirements.txt in your shell.
 ``` bash
 python main.py
 ```
-This shall open a UI as below:
+This shall open user interface, basic functioning of which is shown in this demo:
 <p align="left">
-<img src="images/user_interface.png" alt="User Interface" width="512"/>
+    <img src="images/PhysioKitDemo.gif" alt="Demo of PhysioKit" width="720"/>
 </p>
+
 
 ## **Hardware Setup**
 ### **PPG**
