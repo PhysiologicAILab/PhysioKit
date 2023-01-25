@@ -1,4 +1,9 @@
 {
+    "exp":
+    {
+        "study_name": "S1",
+        "conditions": ["baseline", "mathEasy", "mathDifficult", "movement"]
+    },
     "acq_params":
     {
         "fs":250.0,
