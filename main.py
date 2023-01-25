@@ -184,24 +184,28 @@ class PPG(QWidget):
                 # self.ui.label_status.setText("Time remaining: " + str(self.ui.max_acquisition_time - elapsed_time))
                 if (elapsed_time >= self.ui.max_acquisition_time):
                     self.ui.data_record_flag = False
-                    self.csvfile.close()
-                    time.sleep(1)
-                    self.save_file_path = os.path.join(self.ui.data_root_dir, self.ui.pid + "_" +
-                                                    self.ui.curr_exp_name + '_' + self.ui.curr_exp_condition + '_' + self.ui.utc_sec + '.csv')
-                    shutil.move(self.temp_filename, self.save_file_path)
-                    self.ui.pushButton_record_data.setText("Start Recording")
-                    self.ui.label_status.setText("Recording stopped and data saved for: Exp - " + self.ui.curr_exp_name + "; Condition - " + self.ui.curr_exp_condition)
-                    self.ui.lineEdit_Event.setEnabled(False)
-                    self.ui.pushButton_Event.setEnabled(False)
-                    self.ui.event_status = False
-
-                    # prepare for next recording
-                    self.csvfile = open(self.temp_filename, 'w', encoding="utf", newline="")
-                    self.writer = csv.writer(self.csvfile)
-                    self.writer.writerow(["eda", "resp", "ppg1", "ppg2", "arduino_ts", "event_code"])
-
+                    stop_record_thread = threading.Thread(name='stop_record', target=self.stop_record_process, daemon=True)
+                    stop_record_thread.start()
         return
 
+    def stop_record_process(self):
+        if not self.csvfile.closed:
+            self.csvfile.close()
+            time.sleep(1)
+        self.save_file_path = os.path.join(self.ui.data_root_dir, self.ui.pid + "_" +
+                                        self.ui.curr_exp_name + '_' + self.ui.curr_exp_condition + '_' + self.ui.utc_sec + '.csv')
+        if os.path.exists(self.temp_filename):
+            shutil.move(self.temp_filename, self.save_file_path)
+        self.ui.pushButton_record_data.setText("Start Recording")
+        self.ui.label_status.setText("Recording stopped and data saved for: Exp - " + self.ui.curr_exp_name + "; Condition - " + self.ui.curr_exp_condition)
+        self.ui.lineEdit_Event.setEnabled(False)
+        self.ui.pushButton_Event.setEnabled(False)
+        self.ui.event_status = False
+
+        # prepare for next recording
+        self.csvfile = open(self.temp_filename, 'w', encoding="utf", newline="")
+        self.writer = csv.writer(self.csvfile)
+        self.writer.writerow(["eda", "resp", "ppg1", "ppg2", "arduino_ts", "event_code"])
 
 
     def update_pid(self, text):
@@ -304,20 +308,8 @@ class PPG(QWidget):
 
         else:
             self.ui.data_record_flag = False
-            self.csvfile.close()
-            time.sleep(1)
-            self.save_file_path = os.path.join(self.ui.data_root_dir, self.ui.pid + "_" +
-                                               self.ui.curr_exp_name + '_' + self.ui.curr_exp_condition + '_' + self.ui.utc_sec + '.csv')
-            shutil.move(self.temp_filename, self.save_file_path)
-            self.ui.pushButton_record_data.setText("Start Recording")
-            self.ui.label_status.setText("Recording stopped and data saved for: Exp - " + self.ui.curr_exp_name + "; Condition - " + self.ui.curr_exp_condition)
-            self.ui.lineEdit_Event.setEnabled(False)
-            self.ui.pushButton_Event.setEnabled(False)
-            self.ui.event_status = False
-
-            self.csvfile = open(self.temp_filename, 'w', encoding="utf", newline="")
-            self.writer = csv.writer(self.csvfile)
-            self.writer.writerow(["eda", "resp", "ppg1", "ppg2", "arduino_ts", "event_code"])
+            stop_record_thread = threading.Thread(name='stop_record', target=self.stop_record_process, daemon=True)
+            stop_record_thread.start()
 
 
 class LivePlotFigCanvas(FigureCanvas, TimedAnimation):
