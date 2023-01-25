@@ -2,6 +2,7 @@
 __pycache__/
 *.py[cod]
 *$py.class
+ui_form.py
 
 # Data files
 data**/**
