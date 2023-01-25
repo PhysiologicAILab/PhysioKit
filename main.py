@@ -3,32 +3,26 @@ import threading
 import time
 import json
 import shutil
-
+import numpy as np
+import csv
+from datetime import datetime
+import numpy as np
 import matplotlib.pyplot as plt
 
 from PySide6.QtWidgets import QApplication, QWidget, QGraphicsScene, QDialog, QLineEdit, QDialogButtonBox, QFormLayout, QFileDialog
 from PySide6.QtCore import QFile, QObject, Signal
 from PySide6.QtUiTools import QUiLoader
 
-from datetime import datetime
-import numpy as np
 import os
-
 global osname
 osname = ''
 try:
     osname = os.uname().sysname
 except:
     pass
-if osname == 'Darwin':
-    from matplotlib.backends.backend_qt5agg import FigureCanvasQTAgg as FigureCanvas
-else:
-    from matplotlib.backends.backend_qtagg import FigureCanvasQTAgg as FigureCanvas
 
+from matplotlib.backends.backend_qtagg import FigureCanvasQTAgg as FigureCanvas
 from matplotlib.animation import TimedAnimation
-
-import numpy as np
-import csv
 
 from utils.data_processing_lib import lFilter, lFilter_moving_average
 from utils.devices import serialPort
