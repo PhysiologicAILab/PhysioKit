@@ -176,29 +176,6 @@
            </property>
           </widget>
          </item>
-         <item row="0" column="0">
-          <widget class="QPushButton" name="pushButton_exp_params">
-           <property name="text">
-            <string>Load Experiment Parameters</string>
-           </property>
-          </widget>
-         </item>
-         <item row="0" column="1" colspan="2">
-          <widget class="QLabel" name="label_params_file">
-           <property name="enabled">
-            <bool>false</bool>
-           </property>
-           <property name="sizePolicy">
-            <sizepolicy hsizetype="Minimum" vsizetype="Preferred">
-             <horstretch>0</horstretch>
-             <verstretch>0</verstretch>
-            </sizepolicy>
-           </property>
-           <property name="text">
-            <string>filepath</string>
-           </property>
-          </widget>
-         </item>
          <item row="1" column="1" colspan="2">
           <widget class="QComboBox" name="comboBox_comport">
            <property name="sizePolicy">
@@ -209,8 +186,8 @@
            </property>
            <property name="maximumSize">
             <size>
-             <width>200</width>
-             <height>80</height>
+             <width>350</width>
+             <height>16777215</height>
             </size>
            </property>
            <property name="font">
@@ -261,7 +238,42 @@
          <string>Running Experiment</string>
         </property>
         <layout class="QGridLayout" name="gridLayout_7">
-         <item row="2" column="0">
+         <item row="3" column="0">
+          <widget class="QLineEdit" name="lineEdit_Event">
+           <property name="enabled">
+            <bool>false</bool>
+           </property>
+           <property name="sizePolicy">
+            <sizepolicy hsizetype="Minimum" vsizetype="Preferred">
+             <horstretch>0</horstretch>
+             <verstretch>0</verstretch>
+            </sizepolicy>
+           </property>
+           <property name="toolTip">
+            <string>&lt;html&gt;&lt;head/&gt;&lt;body&gt;&lt;p&gt;Event Code for Marking&lt;/p&gt;&lt;/body&gt;&lt;/html&gt;</string>
+           </property>
+           <property name="text">
+            <string>0</string>
+           </property>
+          </widget>
+         </item>
+         <item row="3" column="1">
+          <widget class="QPushButton" name="pushButton_Event">
+           <property name="enabled">
+            <bool>false</bool>
+           </property>
+           <property name="sizePolicy">
+            <sizepolicy hsizetype="Minimum" vsizetype="Preferred">
+             <horstretch>0</horstretch>
+             <verstretch>0</verstretch>
+            </sizepolicy>
+           </property>
+           <property name="text">
+            <string>Start Marking</string>
+           </property>
+          </widget>
+         </item>
+         <item row="2" column="0" colspan="2">
           <widget class="QPushButton" name="pushButton_record_data">
            <property name="enabled">
             <bool>false</bool>
@@ -282,7 +294,7 @@
            </property>
           </widget>
          </item>
-         <item row="1" column="0">
+         <item row="1" column="0" colspan="2">
           <widget class="QPushButton" name="pushButton_start_live_acquisition">
            <property name="enabled">
             <bool>false</bool>
@@ -323,61 +335,33 @@
          <string>Experiment Specification</string>
         </property>
         <layout class="QGridLayout" name="gridLayout_5">
-         <item row="2" column="0">
-          <widget class="QLabel" name="label_2">
-           <property name="sizePolicy">
-            <sizepolicy hsizetype="Minimum" vsizetype="Preferred">
-             <horstretch>0</horstretch>
-             <verstretch>0</verstretch>
-            </sizepolicy>
-           </property>
-           <property name="font">
-            <font>
-             <pointsize>18</pointsize>
-            </font>
-           </property>
-           <property name="text">
-            <string>Name of Experiment:</string>
-           </property>
-          </widget>
-         </item>
-         <item row="3" column="0">
-          <widget class="QLabel" name="label_3">
-           <property name="sizePolicy">
-            <sizepolicy hsizetype="Minimum" vsizetype="Preferred">
-             <horstretch>0</horstretch>
-             <verstretch>0</verstretch>
-            </sizepolicy>
-           </property>
-           <property name="font">
-            <font>
-             <pointsize>18</pointsize>
-            </font>
-           </property>
-           <property name="text">
-            <string>Experimental Conditions</string>
-           </property>
-          </widget>
-         </item>
-         <item row="1" column="0" colspan="2">
-          <widget class="QPushButton" name="pushButton_addExp">
-           <property name="sizePolicy">
-            <sizepolicy hsizetype="Minimum" vsizetype="Preferred">
-             <horstretch>0</horstretch>
-             <verstretch>0</verstretch>
-            </sizepolicy>
-           </property>
-           <property name="font">
-            <font>
-             <pointsize>18</pointsize>
-            </font>
-           </property>
-           <property name="text">
-            <string>Add Experiment</string>
-           </property>
-          </widget>
-         </item>
          <item row="3" column="1">
+          <widget class="QLabel" name="label_study_name">
+           <property name="sizePolicy">
+            <sizepolicy hsizetype="Minimum" vsizetype="Preferred">
+             <horstretch>0</horstretch>
+             <verstretch>0</verstretch>
+            </sizepolicy>
+           </property>
+           <property name="maximumSize">
+            <size>
+             <width>250</width>
+             <height>16777215</height>
+            </size>
+           </property>
+           <property name="text">
+            <string/>
+           </property>
+          </widget>
+         </item>
+         <item row="1" column="0">
+          <widget class="QPushButton" name="pushButton_exp_params">
+           <property name="text">
+            <string>Load Experiment</string>
+           </property>
+          </widget>
+         </item>
+         <item row="4" column="1">
           <widget class="QListWidget" name="listWidget_expConditions">
            <property name="enabled">
             <bool>true</bool>
@@ -418,55 +402,10 @@
            <property name="sortingEnabled">
             <bool>false</bool>
            </property>
-           <item>
-            <property name="text">
-             <string>Baseline</string>
-            </property>
-            <property name="font">
-             <font>
-              <pointsize>14</pointsize>
-             </font>
-            </property>
-            <property name="checkState">
-             <enum>Unchecked</enum>
-            </property>
-            <property name="flags">
-             <set>ItemIsSelectable|ItemIsDragEnabled|ItemIsEnabled</set>
-            </property>
-           </item>
-           <item>
-            <property name="text">
-             <string>Condition_1</string>
-            </property>
-            <property name="font">
-             <font>
-              <pointsize>14</pointsize>
-             </font>
-            </property>
-            <property name="checkState">
-             <enum>Unchecked</enum>
-            </property>
-            <property name="flags">
-             <set>ItemIsSelectable|ItemIsDragEnabled|ItemIsEnabled</set>
-            </property>
-           </item>
-           <item>
-            <property name="text">
-             <string>Condition_2</string>
-            </property>
-            <property name="font">
-             <font>
-              <pointsize>14</pointsize>
-             </font>
-            </property>
-            <property name="checkState">
-             <enum>Unchecked</enum>
-            </property>
-           </item>
           </widget>
          </item>
-         <item row="4" column="1">
-          <widget class="QPushButton" name="pushButton_Event">
+         <item row="1" column="1">
+          <widget class="QLabel" name="label_params_file">
            <property name="enabled">
             <bool>false</bool>
            </property>
@@ -476,16 +415,19 @@
              <verstretch>0</verstretch>
             </sizepolicy>
            </property>
+           <property name="maximumSize">
+            <size>
+             <width>350</width>
+             <height>16777215</height>
+            </size>
+           </property>
            <property name="text">
-            <string>Start Marking</string>
+            <string>filepath</string>
            </property>
           </widget>
          </item>
-         <item row="2" column="1">
-          <widget class="QComboBox" name="comboBox_expName">
-           <property name="enabled">
-            <bool>true</bool>
-           </property>
+         <item row="4" column="0">
+          <widget class="QLabel" name="label_3">
            <property name="sizePolicy">
             <sizepolicy hsizetype="Minimum" vsizetype="Preferred">
              <horstretch>0</horstretch>
@@ -497,11 +439,28 @@
              <pointsize>18</pointsize>
             </font>
            </property>
-           <item>
-            <property name="text">
-             <string>Study_1</string>
-            </property>
-           </item>
+           <property name="text">
+            <string>Experimental 
+Conditions</string>
+           </property>
+          </widget>
+         </item>
+         <item row="3" column="0">
+          <widget class="QLabel" name="label_2">
+           <property name="sizePolicy">
+            <sizepolicy hsizetype="Minimum" vsizetype="Preferred">
+             <horstretch>0</horstretch>
+             <verstretch>0</verstretch>
+            </sizepolicy>
+           </property>
+           <property name="font">
+            <font>
+             <pointsize>18</pointsize>
+            </font>
+           </property>
+           <property name="text">
+            <string>Study Name</string>
+           </property>
           </widget>
          </item>
          <item row="0" column="0">
@@ -525,24 +484,11 @@
              <verstretch>0</verstretch>
             </sizepolicy>
            </property>
-          </widget>
-         </item>
-         <item row="4" column="0">
-          <widget class="QLineEdit" name="lineEdit_Event">
-           <property name="enabled">
-            <bool>false</bool>
-           </property>
-           <property name="sizePolicy">
-            <sizepolicy hsizetype="Minimum" vsizetype="Preferred">
-             <horstretch>0</horstretch>
-             <verstretch>0</verstretch>
-            </sizepolicy>
-           </property>
-           <property name="toolTip">
-            <string>&lt;html&gt;&lt;head/&gt;&lt;body&gt;&lt;p&gt;Event Code for Marking&lt;/p&gt;&lt;/body&gt;&lt;/html&gt;</string>
-           </property>
-           <property name="text">
-            <string>0</string>
+           <property name="maximumSize">
+            <size>
+             <width>250</width>
+             <height>16777215</height>
+            </size>
            </property>
           </widget>
          </item>

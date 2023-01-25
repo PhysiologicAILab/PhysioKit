@@ -32,25 +32,6 @@ global live_acquisition_flag
 live_acquisition_flag = False
 
 
-class InputDialog(QDialog):
-    def __init__(self, parent=None):
-        super().__init__(parent)
-
-        self.exp_name = QLineEdit(self)
-        self.exp_conditions = QLineEdit(self)
-        buttonBox = QDialogButtonBox(QDialogButtonBox.Ok | QDialogButtonBox.Cancel, self);
-
-        layout = QFormLayout(self)
-        layout.addRow("Experiment Name", self.exp_name)
-        layout.addRow("Experiment Conditions \n (comma-separated)", self.exp_conditions)
-        layout.addWidget(buttonBox)
-
-        buttonBox.accepted.connect(self.accept)
-        buttonBox.rejected.connect(self.reject)
-
-    def getInputs(self):
-        return (self.exp_name.text(), self.exp_conditions.text())
-
 
 class PPG(QWidget):
     def __init__(self):
@@ -63,6 +44,8 @@ class PPG(QWidget):
         ui_file = QFile(path)
         ui_file.open(QFile.ReadOnly)
         self.ui = loader.load(ui_file, self)
+
+        self.ui.exp_loaded = False
 
         # Default params
         self.ui.fs = 250 #sampling rate
@@ -82,18 +65,15 @@ class PPG(QWidget):
             self.ui.ser_port_names.append(port)
 
         self.ui.comboBox_comport.addItems(self.ui.ser_ports_desc)
-        self.ui.curr_ser_port_name = self.ui.ser_port_names[0]
-        self.ui.pushButton_connect.setEnabled(True)
+        if len(self.ui.ser_port_names) >= 1:
+            self.ui.pushButton_connect.setEnabled(True)
+            self.ui.curr_ser_port_name = self.ui.ser_port_names[0]
         self.ui.label_status.setText("Serial port specified: " + self.ui.curr_ser_port_name +
                                      "; Select experiment and condition to start recording data.")
-
         self.ui.comboBox_comport.currentIndexChanged.connect(self.update_serial_port)
         self.ui.pushButton_connect.pressed.connect(self.connect_serial_port)
         self.ui.pushButton_start_live_acquisition.pressed.connect(self.start_acquisition)
         self.ppgDataLoop_started = False
-
-        self.ui.comboBox_expName.currentIndexChanged.connect(self.update_expName)
-        self.ui.pushButton_addExp.pressed.connect(self.add_exp)
 
         self.ui.pid = ""
         self.ui.lineEdit_PID.textChanged.connect(self.update_pid)
@@ -105,24 +85,18 @@ class PPG(QWidget):
         self.ui.max_acquisition_time = -1
         
         self.ui.pushButton_record_data.pressed.connect(self.record_data)
-        self.ui.exp_names = [self.ui.comboBox_expName.itemText(i) for i in range(self.ui.comboBox_expName.count())]
         self.ui.utc_timestamp_featDict = datetime.utcnow()
 
         self.ui.lineEdit_Event.textChanged.connect(self.update_event_code)
         self.ui.pushButton_Event.pressed.connect(self.toggle_marking)
-
-        self.ui.curr_exp_name = self.ui.exp_names[0]
-        self.ui.exp_conds_dict = {}
-        self.ui.conditions = [self.ui.listWidget_expConditions.item(x).text() for x in range(self.ui.listWidget_expConditions.count())]
-        self.ui.exp_conds_dict[self.ui.curr_exp_name] = self.ui.conditions
 
         # Add the callbackfunc
         self.ppgDataLoop = threading.Thread(name='ppgDataLoop', target=ppgDataSendLoop, daemon=True, args=(
             self.addData_callbackFunc, self.ui.spObj))
 
         self.ui.listWidget_expConditions.currentItemChanged.connect(self.update_exp_condition)
-        self.ui.curr_exp_condition = self.ui.conditions[0]
 
+        self.myFig = None
         self.temp_filename = "temp.csv"
         self.csvfile = open(self.temp_filename, 'w', encoding="utf", newline="")
         self.writer = csv.writer(self.csvfile)
@@ -140,7 +114,14 @@ class PPG(QWidget):
         except:
             pass
         if os.path.exists(self.temp_filename):
+            if not self.csvfile.closed:
+                self.csvfile.close()
             os.remove(self.temp_filename)
+
+
+    def update_exp_condition(self):
+        self.ui.curr_exp_condition = self.ui.conditions[self.ui.listWidget_expConditions.currentRow()]
+        self.ui.label_status.setText("Experiment Condition Selected: " + self.ui.curr_exp_condition)
 
 
     def load_exp_params(self):
@@ -162,7 +143,17 @@ class PPG(QWidget):
             self.ui.data_root_dir = self.ui.params_dict["common"]["datapath"]
             if not os.path.exists(self.ui.data_root_dir):
                 os.makedirs(self.ui.data_root_dir)
-            
+
+            self.ui.curr_exp_name = self.ui.params_dict["exp"]["study_name"]
+            self.ui.label_study_name.setText(self.ui.curr_exp_name)
+            self.ui.conditions = self.ui.params_dict["exp"]["conditions"]
+            self.ui.curr_exp_condition = self.ui.conditions[0]
+            self.ui.listWidget_expConditions.clear()
+            self.ui.listWidget_expConditions.addItems(self.ui.conditions)
+            self.ui.listWidget_expConditions.setCurrentRow(0)
+
+            self.ui.exp_loaded = True
+            self.ui.pushButton_exp_params.setEnabled(False)
             self.ui.label_status.setText("Loaded experiment parameters successfully")
         
         except:
@@ -211,30 +202,6 @@ class PPG(QWidget):
 
         return
 
-
-    def add_exp(self):
-        exp_dlg = InputDialog()
-        exp_dlg.exec()
-        exp_name, exp_conds = exp_dlg.getInputs()
-        exp_conds_temp_list = exp_conds.split(sep=',')
-        exp_conds_temp_list = [d.strip() for d in exp_conds_temp_list]
-        if len(exp_conds_temp_list) > 0:
-            self.ui.exp_names.append(exp_name)
-            self.ui.comboBox_expName.addItem(exp_name)
-            self.ui.exp_conds_dict[exp_name] = exp_conds.split(sep=',')
-            for i in range(len(self.ui.exp_conds_dict[exp_name])):
-                self.ui.exp_conds_dict[exp_name][i] = self.ui.exp_conds_dict[exp_name][i].strip()
-        return
-
-    def update_expName(self):
-        self.ui.curr_exp_name = self.ui.exp_names[self.ui.comboBox_expName.currentIndex()]
-        self.ui.label_status.setText("Experiment changed to: " + self.ui.curr_exp_name)
-        self.ui.listWidget_expConditions.clear()
-        self.ui.listWidget_expConditions.addItems(self.ui.exp_conds_dict[self.ui.curr_exp_name])
-
-        # self.ui.conditions = [self.ui.listWidget_expConditions.item(x).text() for x in range(self.ui.listWidget_expConditions.count())]
-        self.ui.conditions = self.ui.exp_conds_dict[self.ui.curr_exp_name]
-        self.ui.curr_exp_condition = self.ui.conditions[0]
 
 
     def update_pid(self, text):
@@ -289,11 +256,10 @@ class PPG(QWidget):
             else:
                 self.ui.label_status.setText("Live acquisition started.")
             self.ui.pushButton_start_live_acquisition.setText('Stop Live Acquisition')        
-            self.ui.pushButton_addExp.setEnabled(False)
-            self.ui.comboBox_expName.setEnabled(False)
             self.ui.listWidget_expConditions.setEnabled(False)
 
-            self.ui.pushButton_record_data.setEnabled(True)
+            if self.ui.exp_loaded:
+                self.ui.pushButton_record_data.setEnabled(True)
 
         else:
             self.ui.label_status.setText("Live acquisition stopped.")
@@ -307,14 +273,8 @@ class PPG(QWidget):
             self.ui.pushButton_record_data.setEnabled(False)
             self.ui.pushButton_start_live_acquisition.setText('Start Live Acquisition')
 
-            self.ui.pushButton_addExp.setEnabled(True)
-            self.ui.comboBox_expName.setEnabled(True)
             self.ui.listWidget_expConditions.setEnabled(True)
 
-    
-    def update_exp_condition(self):
-        self.ui.curr_exp_condition = self.ui.conditions[self.ui.listWidget_expConditions.currentRow()]
-        self.ui.label_status.setText("Experiment Condition Selected: " + self.ui.curr_exp_condition)
 
     
     def record_data(self):
