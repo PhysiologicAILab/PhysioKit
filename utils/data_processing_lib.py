@@ -1,7 +1,7 @@
 import numpy as np
 from scipy.signal import butter, iirnotch	#, lfilter, periodogram
 
-class lFilter:
+class lFilter(object):
 	def __init__(self, lowcut, highcut, sample_rate, order=2):
 		nyq = 0.5 * sample_rate
 		low = lowcut / nyq
@@ -22,7 +22,7 @@ class lFilter:
 		return y
 
 
-class lFilter_notch:
+class lFilter_notch(object):
 	def __init__(self, remove_freq, quality_factor, sample_rate):
 		b, a = iirnotch(w0=remove_freq, Q=quality_factor, fs=sample_rate)
 		self.coefA = a
@@ -40,7 +40,7 @@ class lFilter_notch:
 		return y
 
 
-class lFilter_moving_average:
+class lFilter_moving_average(object):
     def __init__(self, window_size):
         self.window_size = window_size
         self.values = []

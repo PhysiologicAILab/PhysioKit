@@ -7,9 +7,8 @@ import numpy as np
 import csv
 from datetime import datetime
 import numpy as np
-import matplotlib.pyplot as plt
 
-from PySide6.QtWidgets import QApplication, QWidget, QGraphicsScene, QDialog, QLineEdit, QDialogButtonBox, QFormLayout, QFileDialog
+from PySide6.QtWidgets import QApplication, QWidget, QGraphicsScene, QFileDialog
 from PySide6.QtCore import QFile, QObject, Signal
 from PySide6.QtUiTools import QUiLoader
 
@@ -23,14 +22,16 @@ except:
 
 from matplotlib.backends.backend_qtagg import FigureCanvasQTAgg as FigureCanvas
 from matplotlib.animation import TimedAnimation
+from matplotlib.figure import Figure
 
 from utils.data_processing_lib import lFilter, lFilter_moving_average
 from utils.devices import serialPort
 from datetime import datetime
 
-global live_acquisition_flag
+global live_acquisition_flag, hold_acquisition_thread, nChannels
 live_acquisition_flag = False
-
+hold_acquisition_thread = True
+nChannels = 4
 
 
 class PPG(QWidget):
@@ -56,6 +57,7 @@ class PPG(QWidget):
         self.ui.ser_ports_desc = []
         self.ui.ser_open_status = False
         self.ui.curr_ser_port_name = ''
+
         global osname
         for port, desc, hwid in sorted(self.ui.spObj.ports):
             # print("{}: {} [{}]".format(port, desc, hwid))
@@ -98,25 +100,13 @@ class PPG(QWidget):
 
         self.myFig = None
         self.temp_filename = "temp.csv"
+        self.csv_header = ['']
+        self.ui.write_eventcode = ''
         self.csvfile = open(self.temp_filename, 'w', encoding="utf", newline="")
         self.writer = csv.writer(self.csvfile)
-        self.writer.writerow(["eda", "resp", "ppg1", "ppg2", "arduino_ts", "event_code"])
 
         ui_file.close()
 
-
-    def __del__(self):
-        global live_acquisition_flag
-        live_acquisition_flag = False
-        try:
-            if self.ui.spObj.ser.is_open:
-                self.ui.spObj.disconnectPort()
-        except:
-            pass
-        if os.path.exists(self.temp_filename):
-            if not self.csvfile.closed:
-                self.csvfile.close()
-            os.remove(self.temp_filename)
 
 
     def update_exp_condition(self):
@@ -125,6 +115,7 @@ class PPG(QWidget):
 
 
     def load_exp_params(self):
+        global nChannels
         fname = QFileDialog.getOpenFileName(filter='*.json')[0]
         self.ui.label_params_file.setText(os.path.basename(fname))
 
@@ -152,10 +143,17 @@ class PPG(QWidget):
             self.ui.listWidget_expConditions.addItems(self.ui.conditions)
             self.ui.listWidget_expConditions.setCurrentRow(0)
 
+            self.ui.channels = self.ui.params_dict["exp"]["channels"]
+            nChannels = len(self.ui.channels)
+            self.ui.channel_types = self.ui.params_dict["exp"]["channel_types"]
+            self.ui.channel_plot_colors = self.ui.params_dict["exp"]["channel_plot_colors"]
+            self.csv_header = self.ui.channels + ["arduino_ts", "event_code"]
+            self.writer.writerow(self.csv_header)
+
             self.ui.exp_loaded = True
             self.ui.pushButton_exp_params.setEnabled(False)
             self.ui.label_status.setText("Loaded experiment parameters successfully")
-        
+
         except:
             self.ui.label_status.setText("Error loading parameters")
             return
@@ -173,11 +171,7 @@ class PPG(QWidget):
         self.myFig.addData(value)
 
         if self.ui.data_record_flag:
-            eda_val, resp_val, ppg1_val, ppg2_val, ts_val = value
-            if self.ui.event_status:
-                self.writer.writerow([eda_val, resp_val, ppg1_val, ppg2_val, ts_val, self.ui.eventcode])
-            else:
-                self.writer.writerow([eda_val, resp_val, ppg1_val, ppg2_val, ts_val, ''])
+            self.writer.writerow(value + [self.ui.write_eventcode])
 
             if self.ui.timed_acquisition:
                 elapsed_time = (datetime.now() - self.ui.record_start_time).total_seconds()
@@ -188,6 +182,7 @@ class PPG(QWidget):
                     stop_record_thread.start()
         return
 
+    
     def stop_record_process(self):
         if not self.csvfile.closed:
             self.csvfile.close()
@@ -196,16 +191,23 @@ class PPG(QWidget):
                                         self.ui.curr_exp_name + '_' + self.ui.curr_exp_condition + '_' + self.ui.utc_sec + '.csv')
         if os.path.exists(self.temp_filename):
             shutil.move(self.temp_filename, self.save_file_path)
+            self.ui.label_status.setText("Recording stopped and data saved for: Exp - " + self.ui.curr_exp_name + "; Condition - " + self.ui.curr_exp_condition)
+        else:
+            self.ui.label_status.setText("Error saving data")
+
         self.ui.pushButton_record_data.setText("Start Recording")
-        self.ui.label_status.setText("Recording stopped and data saved for: Exp - " + self.ui.curr_exp_name + "; Condition - " + self.ui.curr_exp_condition)
+        
         self.ui.lineEdit_Event.setEnabled(False)
         self.ui.pushButton_Event.setEnabled(False)
-        self.ui.event_status = False
+
+        if self.ui.event_status:
+            self.ui.event_status = False
+            self.myFig.event_toggle = True
 
         # prepare for next recording
         self.csvfile = open(self.temp_filename, 'w', encoding="utf", newline="")
         self.writer = csv.writer(self.csvfile)
-        self.writer.writerow(["eda", "resp", "ppg1", "ppg2", "arduino_ts", "event_code"])
+        self.writer.writerow(self.csv_header)
 
 
     def update_pid(self, text):
@@ -223,9 +225,11 @@ class PPG(QWidget):
         self.myFig.event_toggle = True
         if not self.ui.event_status:
             self.ui.event_status = True
+            self.ui.write_eventcode = self.ui.eventcode
             self.ui.pushButton_Event.setText("Stop Marking")
         else:
             self.ui.event_status = False
+            self.ui.write_eventcode = ''
             self.ui.pushButton_Event.setText("Start Marking")
 
 
@@ -271,7 +275,13 @@ class PPG(QWidget):
             
             self.myFig.reset_draw()
             if os.path.exists(self.temp_filename):
+                if not self.csvfile.closed:
+                    self.csvfile.close()
                 os.remove(self.temp_filename)
+
+            self.csvfile = open(self.temp_filename, 'w', encoding="utf", newline="")
+            self.writer = csv.writer(self.csvfile)
+            self.writer.writerow(self.csv_header)
 
             live_acquisition_flag = False
             self.ui.pushButton_record_data.setEnabled(False)
@@ -283,7 +293,11 @@ class PPG(QWidget):
     
     def record_data(self):
         if not self.ui.data_record_flag:
-            
+            if not os.path.exists(self.temp_filename):
+                self.csvfile = open(self.temp_filename, 'w', encoding="utf", newline="")
+                self.writer = csv.writer(self.csvfile)
+                self.writer.writerow(self.csv_header)
+
             self.ui.record_start_time = datetime.now()
             self.ui.data_record_flag = True
 
@@ -316,7 +330,10 @@ class LivePlotFigCanvas(FigureCanvas, TimedAnimation):
     def __init__(self, uiObj):
         self.uiObj = uiObj
         self.exception_count = 0
+        global nChannels
 
+        self.max_plot_channels = 4
+        self.nChannels = min(nChannels, self.max_plot_channels)  #maximum number of channels for plaotting = 4
         self.max_plot_time = 10 # 30 second time window
         self.measure_time = 1  # moving max_plot_time sample by 1 sec.
         self.count_frame = 0
@@ -328,55 +345,37 @@ class LivePlotFigCanvas(FigureCanvas, TimedAnimation):
         self.ppg_highcut = 3.5
         self.filt_order = 2
         self.moving_average_window_size = int(self.uiObj.fs/4.0)
-        self.eda_filt_obj = lFilter_moving_average(window_size=self.moving_average_window_size)
-        self.resp_filt_obj = lFilter(self.resp_lowcut, self.resp_highcut, self.uiObj.fs, order=self.filt_order)
-        self.ppg1_filt_obj = lFilter(self.ppg_lowcut, self.ppg_highcut, self.uiObj.fs, order=self.filt_order)
-        self.ppg2_filt_obj = lFilter(self.ppg_lowcut, self.ppg_highcut, self.uiObj.fs, order=self.filt_order)
-
         self.x_axis = np.linspace(0, self.max_plot_time, self.max_plot_time*self.uiObj.fs)
-        self.eda_plot_signal = 1000 * np.ones(self.max_plot_time * self.uiObj.fs)
-        self.resp_plot_signal = 1000 * np.ones(self.max_plot_time * self.uiObj.fs)
-        self.ppg1_plot_signal = 1000 * np.ones(self.max_plot_time * self.uiObj.fs)
-        self.ppg2_plot_signal = 1000 * np.ones(self.max_plot_time * self.uiObj.fs)
 
-        # The window
-        self.fig, self.ax = plt.subplots(2, 2, figsize = (12.5, 7), layout="constrained")
+        self.filt_objs = {}
+        self.plot_signals = []
+        self.axs = {}
+        self.lines = {}
 
-        # self.ax[0, 0] settings
-        (self.line1,) = self.ax[0, 0].plot(self.x_axis, self.eda_plot_signal, 'b', markersize=10, linestyle='solid')
-        self.ax[0, 0].set_xlabel('Time (seconds)', fontsize=16)
-        self.ax[0, 0].set_ylabel('EDA', fontsize=16)
-        self.ax[0, 0].set_xlim(0, self.max_plot_time)
-        self.ax[0, 0].set_ylim(0, 1)
-        self.ax[0, 0].yaxis.set_ticks_position('left')
-        self.ax[0, 0].xaxis.set_ticks_position('bottom')
+        self.fig = Figure(figsize=(12.5, 7), layout="constrained")
 
-        # self.ax[0, 1] settings
-        (self.line2,) = self.ax[0, 1].plot(self.x_axis, self.resp_plot_signal, 'g', markersize=10, linestyle='solid')
-        self.ax[0, 1].set_xlabel('Time (seconds)', fontsize=16)
-        self.ax[0, 1].set_ylabel('Resp', fontsize=16)
-        self.ax[0, 1].set_xlim(0, self.max_plot_time)
-        self.ax[0, 1].set_ylim(0, 1)
-        self.ax[0, 1].yaxis.set_ticks_position('left')
-        self.ax[0, 1].xaxis.set_ticks_position('bottom')
+        for nCh in range(self.nChannels):
+            if self.uiObj.channel_types[nCh] == 'eda':
+                self.filt_objs[str(nCh)] = lFilter_moving_average(window_size=self.moving_average_window_size)
+            elif self.uiObj.channel_types[nCh] == 'resp':
+                self.filt_objs[str(nCh)] = lFilter(self.resp_lowcut, self.resp_highcut, self.uiObj.fs, order=self.filt_order)
+            elif self.uiObj.channel_types[nCh] == 'ppg':
+                self.filt_objs[str(nCh)] = lFilter(self.ppg_lowcut, self.ppg_highcut, self.uiObj.fs, order=self.filt_order)
 
-        # self.ax[1, 0] settings
-        (self.line3,) = self.ax[1, 0].plot(self.x_axis, self.ppg1_plot_signal, 'r', markersize=10, linestyle='solid')
-        self.ax[1, 0].set_xlabel('Time (seconds)', fontsize=16)
-        self.ax[1, 0].set_ylabel('PPG-Finger', fontsize=16)
-        self.ax[1, 0].set_xlim(0, self.max_plot_time)
-        self.ax[1, 0].set_ylim(0, 1)
-        self.ax[1, 0].yaxis.set_ticks_position('left')
-        self.ax[1, 0].xaxis.set_ticks_position('bottom')
+            self.plot_signals.append(1000 * np.ones(self.max_plot_time * self.uiObj.fs))
 
-        # self.ax[1, 1] settings
-        (self.line4,) = self.ax[1, 1].plot(self.x_axis, self.ppg2_plot_signal, 'm', markersize=10, linestyle='solid')
-        self.ax[1, 1].set_xlabel('Time (seconds)', fontsize=16)
-        self.ax[1, 1].set_ylabel('PPG-Ear', fontsize=16)
-        self.ax[1, 1].set_xlim(0, self.max_plot_time)
-        self.ax[1, 1].set_ylim(0, 1)
-        self.ax[1, 1].yaxis.set_ticks_position('left')
-        self.ax[1, 1].xaxis.set_ticks_position('bottom')
+            if self.nChannels == self.max_plot_channels:
+                self.axs[str(nCh)] = self.fig.add_subplot(2, 2, nCh+1)
+            else:
+                self.axs[str(nCh)] = self.fig.add_subplot(self.nChannels, 1, nCh+1)
+
+            (self.lines[str(nCh)],) = self.axs[str(nCh)].plot(self.x_axis, self.plot_signals[nCh], self.uiObj.channel_plot_colors[nCh], markersize=10, linestyle='solid')
+            self.axs[str(nCh)].set_xlabel('Time (seconds)', fontsize=16)
+            self.axs[str(nCh)].set_ylabel(self.uiObj.channels[nCh], fontsize=16)
+            self.axs[str(nCh)].set_xlim(0, self.max_plot_time)
+            self.axs[str(nCh)].set_ylim(0, 1)
+            self.axs[str(nCh)].yaxis.set_ticks_position('left')
+            self.axs[str(nCh)].xaxis.set_ticks_position('bottom')
 
         FigureCanvas.__init__(self, self.fig)
         TimedAnimation.__init__(self, self.fig, interval=int(round(10*1000.0/self.uiObj.fs)), blit = True)  # figure update frequency: 1/10th of sampling rate
@@ -386,8 +385,14 @@ class LivePlotFigCanvas(FigureCanvas, TimedAnimation):
     def new_frame_seq(self):
         return iter(range(int(self.max_plot_time * self.uiObj.fs)))
 
+
     def _init_draw(self):
-        return (self.line1, self.line2, self.line3, self.line4, )
+        lines = []
+        for nCh in range(self.nChannels):
+            lines.append(self.lines[str(nCh)])
+        lines = tuple(lines)
+        return (lines)
+
 
     def reset_draw(self):
         self.count_frame = 0 # self.max_plot_time * self.uiObj.fs
@@ -397,26 +402,15 @@ class LivePlotFigCanvas(FigureCanvas, TimedAnimation):
 
     def addData(self, value):
         global live_acquisition_flag
-        eda_val, resp_val, ppg1_val, ppg2_val, _ = value
-        eda_filtered = self.eda_filt_obj.lfilt(eda_val)
-        resp_filtered = self.resp_filt_obj.lfilt(resp_val)
-        ppg1_filtered = self.ppg1_filt_obj.lfilt(ppg1_val)
-        ppg2_filtered = self.ppg2_filt_obj.lfilt(ppg2_val)
+        val_filt = []
+        for nCh in range(self.nChannels):
+            val_filt.append(self.filt_objs[str(nCh)].lfilt(value[nCh]))
 
         if live_acquisition_flag: 
             self.count_frame += 1
-            self.eda_plot_signal = np.roll(self.eda_plot_signal, -1)
-            self.eda_plot_signal[-1] = eda_filtered
-
-            self.resp_plot_signal = np.roll(self.resp_plot_signal, -1)
-            self.resp_plot_signal[-1] = resp_filtered
-
-            self.ppg1_plot_signal = np.roll(self.ppg1_plot_signal, -1)
-            self.ppg1_plot_signal[-1] = ppg1_filtered
-
-            self.ppg2_plot_signal = np.roll(self.ppg2_plot_signal, -1)
-            self.ppg2_plot_signal[-1] = ppg2_filtered
-
+            for nCh in range(self.nChannels):
+                self.plot_signals[nCh] = np.roll(self.plot_signals[nCh], -1)
+                self.plot_signals[nCh][-1] = val_filt[nCh]
         return
 
 
@@ -438,30 +432,25 @@ class LivePlotFigCanvas(FigureCanvas, TimedAnimation):
 
             if self.count_frame >= (self.measure_time * self.uiObj.fs):
                 self.count_frame = 0
-                self.ax[0, 0].set_ylim(np.min(self.eda_plot_signal), np.max(self.eda_plot_signal))
-                self.ax[0, 1].set_ylim(np.min(self.resp_plot_signal), np.max(self.resp_plot_signal))
-                self.ax[1, 0].set_ylim(np.min(self.ppg1_plot_signal), np.max(self.ppg1_plot_signal))
-                self.ax[1, 1].set_ylim(np.min(self.ppg2_plot_signal), np.max(self.ppg2_plot_signal))
+
+                for nCh in range(self.nChannels):
+                    self.axs[str(nCh)].set_ylim(np.min(self.plot_signals[nCh]), np.max(self.plot_signals[nCh]))
 
             if self.event_toggle:
                 if self.uiObj.event_status:
-                    self.line1.set_linestyle((0, (5, 5)))
-                    self.line2.set_linestyle((0, (5, 5)))
-                    self.line3.set_linestyle((0, (5, 5)))
-                    self.line4.set_linestyle((0, (5, 5)))
+                    for nCh in range(self.nChannels):
+                        self.lines[str(nCh)].set_linestyle((0, (5, 5)))
                 else:
-                    self.line1.set_linestyle((0, ()))
-                    self.line2.set_linestyle((0, ()))
-                    self.line3.set_linestyle((0, ()))
-                    self.line4.set_linestyle((0, ()))
+                    for nCh in range(self.nChannels):
+                        self.lines[str(nCh)].set_linestyle((0, ()))
                 self.event_toggle = False
 
-            self.line1.set_ydata(self.eda_plot_signal)
-            self.line2.set_ydata(self.resp_plot_signal)
-            self.line3.set_ydata(self.ppg1_plot_signal)
-            self.line4.set_ydata(self.ppg2_plot_signal)
+            self._drawn_artists = []
+            for nCh in range(self.nChannels):
+                self.lines[str(nCh)].set_ydata(self.plot_signals[nCh])
+                self._drawn_artists.append(self.lines[str(nCh)])
 
-            self._drawn_artists = [self.line1, self.line2, self.line3, self.line4]
+            # self._drawn_artists = [self.line1, self.line2, self.line3, self.line4]
 
         return
 
@@ -473,16 +462,12 @@ class Communicate(QObject):
 
 
 def ppgDataSendLoop(addData_callbackFunc, spObj):
-    global live_acquisition_flag
+    global live_acquisition_flag, hold_acquisition_thread, nChannels
     # Setup the signal-slot mechanism.
     mySrc = Communicate()
     mySrc.data_signal.connect(addData_callbackFunc)
-    edaVal = 0
-    respVal = 0
-    ppgVal1 = 0
-    ppgVal2 = 0
-    tsVal = 0
-    buffersize = 5*4*bytes.__sizeof__(bytes()) + 2*bytes.__sizeof__(bytes())    #4 sensor unsigned int and 1 tsVal unsigned long => 5 * 4 bytes + 2 bytes for \r\n
+    value = []
+    buffersize = (nChannels + 1)*4*bytes.__sizeof__(bytes()) + 2*bytes.__sizeof__(bytes())    #4 sensor unsigned int and 1 tsVal unsigned long => 5 * 4 bytes + 2 bytes for \r\n
 
     while(True):
         if live_acquisition_flag and spObj.ser.is_open:
@@ -496,30 +481,39 @@ def ppgDataSendLoop(addData_callbackFunc, spObj):
                 serial_data = []
                 print('Serial port not open')
 
-            if len(serial_data) == 5:
+            try:
+                value = []
+                for nCh in range(nChannels + 1):
+                    value.append(float(serial_data[nCh]))
+            except:
+                print('error in reading data', serial_data)
                 try:
-                    edaVal = float(serial_data[0])
-                    respVal = float(serial_data[1])
-                    ppgVal1 = float(serial_data[2])
-                    ppgVal2 = float(serial_data[3])
-                    tsVal = float(serial_data[4])
+                    assert len(serial_data) == (nChannels + 1)  #data channels + time_stamp
                 except:
-                    # ppgVal1 = ppgVal2 = edaVal = respVal = tsVal = 0
-                    print('error in reading data', serial_data)
+                    print('Mismatch in the number of channels specified in JSON file and the serial data received from Arduino or microcontroller')
 
-                # time.sleep(0.01)
-                mySrc.data_signal.emit([edaVal, respVal, ppgVal1, ppgVal2, tsVal])  # <- Here you emit a signal!l
-            else:
-                print('Serial data:', serial_data)
+            # time.sleep(0.01)
+            mySrc.data_signal.emit(value)  # <- Here you emit a signal!l
+
         else:
-            time.sleep(1)
+            if not hold_acquisition_thread:
+                break
+            else:
+                time.sleep(1)
 
 def main(app):
-    # app.setStyle('Fusion')
+    if osname == 'Darwin':
+        app.setStyle('Fusion')
+    
     widget = PPG()
     widget.show()
     ret = app.exec()
     del widget
+
+    fn = "temp.csv"
+    if os.path.exists(fn):
+        os.remove(fn)
+
     # sys.exit(ret)
     return
 

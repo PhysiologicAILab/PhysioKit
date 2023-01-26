@@ -2,7 +2,10 @@
     "exp":
     {
         "study_name": "S1",
-        "conditions": ["baseline", "mathEasy", "mathDifficult", "movement"]
+        "conditions": ["baseline", "mathEasy", "mathDifficult", "movement"],
+        "channels": ["EDA", "Resp", "PPG Finger", "PPG Ear"],
+        "channel_types": ["eda", "resp", "ppg", "ppg"],
+        "channel_plot_colors": ["b", "g", "r", "m"]
     },
     "acq_params":
     {
