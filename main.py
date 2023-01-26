@@ -30,10 +30,17 @@ from utils.devices import serialPort
 from utils.external_sync import External_Sync
 
 
-global live_acquisition_flag, hold_acquisition_thread, nChannels, temp_filename
+global live_acquisition_flag, hold_acquisition_thread, nChannels, temp_filename, marker_event_status, sampling_rate
 live_acquisition_flag = False
 hold_acquisition_thread = True
-nChannels = 4
+nChannels = 4                   #default
+marker_event_status = False
+sampling_rate = 250             #default
+
+# Setup a signal slot mechanism, to send data to GUI in a thread-safe way.
+class Communicate(QObject):
+    data_signal = Signal(list)
+    data_signal_filt = Signal(list)
 
 
 class PPG(QWidget):
@@ -50,10 +57,17 @@ class PPG(QWidget):
 
         self.ui.exp_loaded = False
 
+        global sampling_rate
         # Default params
-        self.ui.ext_sync_flag = False
-        self.ui.fs = 250 #sampling rate
+        self.ext_sync_flag = False
         self.ui.baudrate = 2000000
+
+        self.resp_lowcut = 0.1
+        self.resp_highcut = 0.4
+        self.ppg_lowcut = 0.8
+        self.ppg_highcut = 3.5
+        self.filt_order = 2
+        self.eda_moving_average_window_size = int(sampling_rate/4.0)
 
         self.ui.spObj = serialPort()
         self.ui.ser_port_names = []
@@ -78,7 +92,7 @@ class PPG(QWidget):
         self.ui.comboBox_comport.currentIndexChanged.connect(self.update_serial_port)
         self.ui.pushButton_connect.pressed.connect(self.connect_serial_port)
         self.ui.pushButton_start_live_acquisition.pressed.connect(self.start_acquisition)
-        self.ppgDataLoop_started = False
+        self.phys_data_acq_started_flag = False
 
         self.ui.pid = ""
         self.ui.lineEdit_PID.textChanged.connect(self.update_pid)
@@ -94,10 +108,6 @@ class PPG(QWidget):
 
         self.ui.lineEdit_Event.textChanged.connect(self.update_event_code)
         self.ui.pushButton_Event.pressed.connect(self.toggle_marking)
-
-        # Add the callbackfunc
-        self.ppgDataLoop = threading.Thread(name='ppgDataLoop', target=ppgDataSendLoop, daemon=True, args=(
-            self.addData_callbackFunc, self.ui.spObj))
 
         self.ui.listWidget_expConditions.currentItemChanged.connect(self.update_exp_condition)
 
@@ -121,86 +131,106 @@ class PPG(QWidget):
         self.ui.label_status.setText("Experiment Condition Selected: " + self.ui.curr_exp_condition)
 
 
+
     def load_exp_params(self):
-        global nChannels
+
+        global nChannels, sampling_rate
+        
         fname = QFileDialog.getOpenFileName(filter='*.json')[0]
         self.ui.label_params_file.setText(os.path.basename(fname))
 
+        self.ui.params_dict = None
         try:
             with open(fname) as json_file:
                 self.ui.params_dict = json.load(json_file)
+        except:
+            self.ui.label_status.setText("Error opening the JSON file")
 
-            self.ui.fs = int(self.ui.params_dict["acq_params"]["fs"])
-            self.ui.baudrate = int(self.ui.params_dict["acq_params"]["baudrate"])
-            
-            self.ui.timed_acquisition = self.ui.params_dict["acq_params"]["timed_acquisition"]
-            # print(self.ui.timed_acquisition, type(self.ui.timed_acquisition))
-            if self.ui.timed_acquisition:
-                self.ui.max_acquisition_time = int(self.ui.params_dict["acq_params"]["max_time_seconds"])
+        try:
+            if self.ui.params_dict != None:
+                sampling_rate = int(self.ui.params_dict["acq_params"]["fs"])
+                self.ui.baudrate = int(self.ui.params_dict["acq_params"]["baudrate"])
+                
+                self.ui.timed_acquisition = self.ui.params_dict["acq_params"]["timed_acquisition"]
+                # print(self.ui.timed_acquisition, type(self.ui.timed_acquisition))
+                if self.ui.timed_acquisition:
+                    self.ui.max_acquisition_time = int(self.ui.params_dict["acq_params"]["max_time_seconds"])
 
-            self.ui.data_root_dir = self.ui.params_dict["common"]["datapath"]
-            if not os.path.exists(self.ui.data_root_dir):
-                os.makedirs(self.ui.data_root_dir)
+                self.ui.data_root_dir = self.ui.params_dict["common"]["datapath"]
+                if not os.path.exists(self.ui.data_root_dir):
+                    os.makedirs(self.ui.data_root_dir)
 
-            self.ui.curr_exp_name = self.ui.params_dict["exp"]["study_name"]
-            self.ui.label_study_name.setText(self.ui.curr_exp_name)
-            self.ui.conditions = self.ui.params_dict["exp"]["conditions"]
-            self.ui.curr_exp_condition = self.ui.conditions[0]
-            self.ui.listWidget_expConditions.clear()
-            self.ui.listWidget_expConditions.addItems(self.ui.conditions)
-            self.ui.listWidget_expConditions.setCurrentRow(0)
+                self.ui.curr_exp_name = self.ui.params_dict["exp"]["study_name"]
+                self.ui.label_study_name.setText(self.ui.curr_exp_name)
+                self.ui.conditions = self.ui.params_dict["exp"]["conditions"]
+                self.ui.curr_exp_condition = self.ui.conditions[0]
+                self.ui.listWidget_expConditions.clear()
+                self.ui.listWidget_expConditions.addItems(self.ui.conditions)
+                self.ui.listWidget_expConditions.setCurrentRow(0)
 
-            self.ui.channels = self.ui.params_dict["exp"]["channels"]
-            nChannels = len(self.ui.channels)
-            self.ui.channel_types = self.ui.params_dict["exp"]["channel_types"]
-            self.ui.channel_plot_colors = self.ui.params_dict["exp"]["channel_plot_colors"]
-            self.csv_header = self.ui.channels + ["arduino_ts", "event_code"]
-            self.writer.writerow(self.csv_header)
+                self.ui.channels = self.ui.params_dict["exp"]["channels"]
+                nChannels = len(self.ui.channels)
+                self.ui.channel_types = self.ui.params_dict["exp"]["channel_types"]
+                self.ui.channel_plot_colors = self.ui.params_dict["exp"]["channel_plot_colors"]
+                self.csv_header = self.ui.channels + ["arduino_ts", "event_code"]
+                self.writer.writerow(self.csv_header)
 
-            # External Sync         
-            self.ui.ext_sync_flag = self.ui.params_dict["external_sync"]["enable"]
-            if self.ui.ext_sync_flag:
-                self.ui.sync_role = self.ui.params_dict["external_sync"]["role"]
-                self.ui.sync_ip = self.ui.params_dict["external_sync"]["tcp_ip"]
-                self.ui.sync_port = self.ui.params_dict["external_sync"]["tcp_port"]
-                self.ui.sync_obj = External_Sync(self.ui.sync_role, self.ui.sync_ip, self.ui.sync_port)
+                self.filt_objs = {}
+                self.eda_moving_average_window_size = int(sampling_rate/4.0)
 
-            self.ui.exp_loaded = True
-            self.ui.pushButton_exp_params.setEnabled(False)
-            self.ui.label_status.setText("Loaded experiment parameters successfully")
+                for nCh in range(nChannels):
+                    if self.ui.channel_types[nCh] == 'eda':
+                        self.filt_objs[str(nCh)] = lFilter_moving_average(window_size=self.eda_moving_average_window_size)
+                    elif self.ui.channel_types[nCh] == 'resp':
+                        self.filt_objs[str(nCh)] = lFilter(self.resp_lowcut, self.resp_highcut, sampling_rate, order=self.filt_order)
+                    elif self.ui.channel_types[nCh] == 'ppg':
+                        self.filt_objs[str(nCh)] = lFilter(self.ppg_lowcut, self.ppg_highcut, sampling_rate, order=self.filt_order)
+
+                # External Sync         
+                self.ext_sync_flag = self.ui.params_dict["external_sync"]["enable"]
+                if self.ext_sync_flag:
+                    self.sync_role = self.ui.params_dict["external_sync"]["role"]
+                    self.sync_ip = self.ui.params_dict["external_sync"]["tcp_ip"]
+                    self.sync_port = self.ui.params_dict["external_sync"]["tcp_port"]
+                    self.sync_obj = External_Sync(self.sync_role, self.sync_ip, self.sync_port)
+
+                    if self.sync_role == "server":
+                        self.ui.label_status.setText("Server is starting to accept client connection...")
+                        start_server_thread = threading.Thread(name='start_server', target=self.sync_obj.start_accepting_client_connection, daemon=True)
+                        start_server_thread.start()
+
+                    elif self.sync_role == "client":
+                        self.ui.label_status.setText("Client is attempting to connect with server...")
+                        self.sync_obj.connect_with_server()
+
+                # # Place the matplotlib figure
+                self.myFig = LivePlotFigCanvas(channels = self.ui.channels, ch_colors = self.ui.channel_plot_colors)
+                self.graphic_scene = QGraphicsScene()
+                self.graphic_scene.addWidget(self.myFig)
+                self.ui.graphicsView.setScene(self.graphic_scene)
+                self.ui.graphicsView.show()
+
+                self.ui.exp_loaded = True
+                if self.ui.ser_open_status:
+                    self.ui.pushButton_start_live_acquisition.setEnabled(True)
+
+                self.ui.pushButton_exp_params.setEnabled(False)
+                self.ui.label_status.setText("Loaded experiment parameters successfully")
 
         except:
             self.ui.label_status.setText("Error loading parameters")
-            return
-
-        # # Place the matplotlib figure
-        self.myFig = LivePlotFigCanvas(uiObj=self.ui)
-        self.graphic_scene = QGraphicsScene()
-        self.graphic_scene.addWidget(self.myFig)
-        self.ui.graphicsView.setScene(self.graphic_scene)
-        self.ui.graphicsView.show()
 
 
-    def addData_callbackFunc(self, value):
-        # print("Add data: " + str(value))
 
-        self.myFig.addData(value)
-
-        if self.ui.data_record_flag:
+    def csvWrite_function(self, value):
+        try:
             self.writer.writerow(value + [self.ui.write_eventcode])
-
-            if self.ui.timed_acquisition:
-                elapsed_time = (datetime.now() - self.ui.record_start_time).total_seconds()
-                # self.ui.label_status.setText("Time remaining: " + str(self.ui.max_acquisition_time - elapsed_time))
-                if (elapsed_time >= self.ui.max_acquisition_time):
-                    self.ui.data_record_flag = False
-                    stop_record_thread = threading.Thread(name='stop_record', target=self.stop_record_process, daemon=True)
-                    stop_record_thread.start()
-        return
+        except:
+            print("Error writing data:", value + [self.ui.write_eventcode])
 
     
     def stop_record_process(self):
-        global temp_filename
+        global temp_filename, marker_event_status
         if not self.csvfile.closed:
             self.csvfile.close()
             time.sleep(1)
@@ -217,8 +247,8 @@ class PPG(QWidget):
         self.ui.lineEdit_Event.setEnabled(False)
         self.ui.pushButton_Event.setEnabled(False)
 
-        if self.ui.event_status:
-            self.ui.event_status = False
+        if marker_event_status:
+            marker_event_status = False
             self.myFig.event_toggle = True
 
         # prepare for next recording
@@ -239,13 +269,14 @@ class PPG(QWidget):
             self.ui.eventcode = 0
 
     def toggle_marking(self):
+        global marker_event_status
         self.myFig.event_toggle = True
-        if not self.ui.event_status:
-            self.ui.event_status = True
+        if not marker_event_status:
+            marker_event_status = True
             self.ui.write_eventcode = self.ui.eventcode
             self.ui.pushButton_Event.setText("Stop Marking")
         else:
-            self.ui.event_status = False
+            marker_event_status = False
             self.ui.write_eventcode = ''
             self.ui.pushButton_Event.setText("Start Marking")
 
@@ -259,7 +290,8 @@ class PPG(QWidget):
         if not self.ui.ser_open_status:
             self.ui.ser_open_status = self.ui.spObj.connectPort(self.ui.curr_ser_port_name, self.ui.baudrate)
             self.ui.label_status.setText("Serial port is now connected: " + str(self.ui.spObj.ser))
-            self.ui.pushButton_start_live_acquisition.setEnabled(True)
+            if self.ui.exp_loaded:
+                self.ui.pushButton_start_live_acquisition.setEnabled(True)
             if self.ui.ser_open_status:
                 self.ui.pushButton_connect.setText('Disconnect')
         else:
@@ -274,9 +306,10 @@ class PPG(QWidget):
         global live_acquisition_flag, temp_filename
         if not live_acquisition_flag:
             live_acquisition_flag = True
-            if not self.ppgDataLoop_started:
-                self.ppgDataLoop.start()
-                self.ppgDataLoop_started = True
+            if not self.phys_data_acq_started_flag:
+                self.phys_data_acquisition_thread = threading.Thread(name='phys_data_acquisition', target=self.phys_data_acquisition, daemon=True)
+                self.phys_data_acquisition_thread.start()
+                self.phys_data_acq_started_flag = True
                 self.ui.label_status.setText("Live acquisition started")
             else:
                 self.ui.label_status.setText("Live acquisition started.")
@@ -309,7 +342,7 @@ class PPG(QWidget):
 
     def start_record_process(self):
 
-        global temp_filename
+        global temp_filename, marker_event_status
         self.ui.pushButton_record_data.setText("Staring to Record...")
         self.ui.pushButton_record_data.setEnabled(False)
 
@@ -319,13 +352,15 @@ class PPG(QWidget):
             self.writer.writerow(self.csv_header)
 
         sync_signal = False
-        if self.ui.ext_sync_flag:
-            if self.ui.sync_role == "server":
-                self.ui.label_status.setText("Server is ready, waiting for external sync to start recording")
-                sync_signal = self.ui.sync_obj.run_server()
-            elif self.ui.sync_role == "client":
-                self.ui.sync_obj.run_client()
+        if self.ext_sync_flag:
+            if self.sync_role == "server":
+                if self.sync_obj.client_connect_status:
+                    self.sync_obj.send_sync_to_client()
+                else:
+                    self.ui.label_status.setText('Client not connected for sync at: IP=' + self.sync_ip + '; port=' + self.sync_port)
                 sync_signal = True
+            else:
+                sync_signal = self.sync_obj.wait_for_server_sync()
         else:
             sync_signal = True
 
@@ -336,7 +371,6 @@ class PPG(QWidget):
             self.ui.utc_sec = str((self.ui.record_start_time - datetime(1970, 1, 1)).total_seconds())
             self.ui.utc_sec = self.ui.utc_sec.replace('.', '_')
 
-            # self.ui.utc_timestamp_signal = datetime.utcnow()
             self.ui.pushButton_record_data.setText("Stop Recording")
             self.ui.pushButton_record_data.setEnabled(True)
 
@@ -347,7 +381,7 @@ class PPG(QWidget):
 
             self.ui.lineEdit_Event.setEnabled(True)
             self.ui.pushButton_Event.setEnabled(True)
-            self.ui.event_status = False
+            marker_event_status = False
 
             try:
                 self.ui.eventcode = int(self.ui.lineEdit_Event.text())
@@ -367,28 +401,85 @@ class PPG(QWidget):
             stop_record_thread.start()
 
 
+
+    def phys_data_acquisition(self):
+        global live_acquisition_flag, hold_acquisition_thread, nChannels
+        # Setup the signal-slot mechanism.
+        mySrc = Communicate()
+        mySrc.data_signal.connect(self.csvWrite_function)
+        mySrc.data_signal_filt.connect(self.myFig.addData)
+        value = []
+        value_filt = []
+        buffersize = (nChannels + 1)*4*bytes.__sizeof__(bytes()) + 2*bytes.__sizeof__(bytes())    #4 sensor unsigned int and 1 tsVal unsigned long => 5 * 4 bytes + 2 bytes for \r\n
+
+        while(True):
+            if live_acquisition_flag and self.ui.spObj.ser.is_open:
+                #Read data from serial port
+                try:
+                    serial_data = self.ui.spObj.ser.readline(buffersize)
+                    serial_data = serial_data.split(b'\r\n')
+                    serial_data = serial_data[0].split(b',')
+                    #print(serial_data)
+                except:
+                    serial_data = []
+                    print('Serial port not open')
+
+                try:
+                    value = []
+                    value_filt = []
+                    for nCh in range(nChannels):
+                        serial_val = float(serial_data[nCh])
+                        value.append(serial_val)
+                        value_filt.append(self.filt_objs[str(nCh)].lfilt(serial_val))
+
+                    serial_val = float(serial_data[nChannels])
+                    value.append(serial_val)
+
+                    if self.ui.data_record_flag:
+                        if self.ui.timed_acquisition:
+                            elapsed_time = (datetime.now() - self.ui.record_start_time).total_seconds()
+                            # self.ui.label_status.setText("Time remaining: " + str(self.ui.max_acquisition_time - elapsed_time))
+                            if (elapsed_time >= self.ui.max_acquisition_time):
+                                self.ui.data_record_flag = False
+                                stop_record_thread = threading.Thread(name='stop_record', target=self.stop_record_process, daemon=True)
+                                stop_record_thread.start()
+
+                except:
+                    print('error in reading data', serial_data)
+                    try:
+                        assert len(serial_data) == (nChannels + 1)  #data channels + time_stamp
+                    except:
+                        print('Mismatch in the number of channels specified in JSON file and the serial data received from Arduino or microcontroller')
+
+                # time.sleep(0.01)
+                if self.ui.data_record_flag:
+                    mySrc.data_signal.emit(value)
+
+                mySrc.data_signal_filt.emit(value_filt)
+
+            else:
+                if not hold_acquisition_thread:
+                    break
+                else:
+                    time.sleep(1)
+
+
+
 class LivePlotFigCanvas(FigureCanvas, TimedAnimation):
-    def __init__(self, uiObj):
-        self.uiObj = uiObj
+    def __init__(self, channels, ch_colors):
         self.exception_count = 0
-        global nChannels
+        global nChannels, sampling_rate
 
         self.max_plot_channels = 4
         self.nChannels = min(nChannels, self.max_plot_channels)  #maximum number of channels for plaotting = 4
         self.max_plot_time = 10 # 30 second time window
-        self.measure_time = 1  # moving max_plot_time sample by 1 sec.
         self.count_frame = 0
         self.event_toggle = False
-        
-        self.resp_lowcut = 0.1
-        self.resp_highcut = 0.4
-        self.ppg_lowcut = 0.8
-        self.ppg_highcut = 3.5
-        self.filt_order = 2
-        self.moving_average_window_size = int(self.uiObj.fs/4.0)
-        self.x_axis = np.linspace(0, self.max_plot_time, self.max_plot_time*self.uiObj.fs)
+        self.measure_time = 1  # moving max_plot_time sample by 1 sec.
+        self.max_frames_for_relimiting_axis = self.measure_time * sampling_rate
+                
+        self.x_axis = np.linspace(0, self.max_plot_time, self.max_plot_time*sampling_rate)
 
-        self.filt_objs = {}
         self.plot_signals = []
         self.axs = {}
         self.lines = {}
@@ -396,35 +487,29 @@ class LivePlotFigCanvas(FigureCanvas, TimedAnimation):
         self.fig = Figure(figsize=(12.5, 7), layout="constrained")
 
         for nCh in range(self.nChannels):
-            if self.uiObj.channel_types[nCh] == 'eda':
-                self.filt_objs[str(nCh)] = lFilter_moving_average(window_size=self.moving_average_window_size)
-            elif self.uiObj.channel_types[nCh] == 'resp':
-                self.filt_objs[str(nCh)] = lFilter(self.resp_lowcut, self.resp_highcut, self.uiObj.fs, order=self.filt_order)
-            elif self.uiObj.channel_types[nCh] == 'ppg':
-                self.filt_objs[str(nCh)] = lFilter(self.ppg_lowcut, self.ppg_highcut, self.uiObj.fs, order=self.filt_order)
-
-            self.plot_signals.append(1000 * np.ones(self.max_plot_time * self.uiObj.fs))
+            self.plot_signals.append(1000 * np.ones(self.max_plot_time * sampling_rate))
 
             if self.nChannels == self.max_plot_channels:
                 self.axs[str(nCh)] = self.fig.add_subplot(2, 2, nCh+1)
             else:
                 self.axs[str(nCh)] = self.fig.add_subplot(self.nChannels, 1, nCh+1)
 
-            (self.lines[str(nCh)],) = self.axs[str(nCh)].plot(self.x_axis, self.plot_signals[nCh], self.uiObj.channel_plot_colors[nCh], markersize=10, linestyle='solid')
+            (self.lines[str(nCh)],) = self.axs[str(nCh)].plot(self.x_axis, self.plot_signals[nCh], ch_colors[nCh], markersize=10, linestyle='solid')
             self.axs[str(nCh)].set_xlabel('Time (seconds)', fontsize=16)
-            self.axs[str(nCh)].set_ylabel(self.uiObj.channels[nCh], fontsize=16)
+            self.axs[str(nCh)].set_ylabel(channels[nCh], fontsize=16)
             self.axs[str(nCh)].set_xlim(0, self.max_plot_time)
             self.axs[str(nCh)].set_ylim(0, 1)
             self.axs[str(nCh)].yaxis.set_ticks_position('left')
             self.axs[str(nCh)].xaxis.set_ticks_position('bottom')
 
         FigureCanvas.__init__(self, self.fig)
-        TimedAnimation.__init__(self, self.fig, interval=int(round(10*1000.0/self.uiObj.fs)), blit = True)  # figure update frequency: 1/10th of sampling rate
+        # TimedAnimation.__init__(self, self.fig, interval=int(round(10*1000.0/sampling_rate)), blit = True)  # figure update frequency: 1/10th of sampling rate
+        TimedAnimation.__init__(self, self.fig, interval=50, blit = True)  # figure update frequency: 30 FPS
         return
 
 
     def new_frame_seq(self):
-        return iter(range(int(self.max_plot_time * self.uiObj.fs)))
+        return iter(range(int(self.max_plot_time * sampling_rate)))
 
 
     def _init_draw(self):
@@ -436,7 +521,7 @@ class LivePlotFigCanvas(FigureCanvas, TimedAnimation):
 
 
     def reset_draw(self):
-        self.count_frame = 0 # self.max_plot_time * self.uiObj.fs
+        self.count_frame = 0 # self.max_plot_time * sampling_rate
 
         return
 
@@ -446,7 +531,7 @@ class LivePlotFigCanvas(FigureCanvas, TimedAnimation):
 
         for nCh in range(self.nChannels):
             self.plot_signals[nCh] = np.roll(self.plot_signals[nCh], -1)
-            self.plot_signals[nCh][-1] = self.filt_objs[str(nCh)].lfilt(value[nCh])
+            self.plot_signals[nCh][-1] = value[nCh]
         return
 
 
@@ -463,17 +548,17 @@ class LivePlotFigCanvas(FigureCanvas, TimedAnimation):
 
 
     def _draw_frame(self, framedata):
-        global live_acquisition_flag
+        global live_acquisition_flag, marker_event_status
         if live_acquisition_flag:   
 
-            if self.count_frame >= (self.measure_time * self.uiObj.fs):
+            if self.count_frame >= self.max_frames_for_relimiting_axis:
                 self.count_frame = 0
 
                 for nCh in range(self.nChannels):
                     self.axs[str(nCh)].set_ylim(np.min(self.plot_signals[nCh]), np.max(self.plot_signals[nCh]))
 
             if self.event_toggle:
-                if self.uiObj.event_status:
+                if marker_event_status:
                     for nCh in range(self.nChannels):
                         self.lines[str(nCh)].set_linestyle((0, (5, 5)))
                 else:
@@ -486,66 +571,22 @@ class LivePlotFigCanvas(FigureCanvas, TimedAnimation):
                 self.lines[str(nCh)].set_ydata(self.plot_signals[nCh])
                 self._drawn_artists.append(self.lines[str(nCh)])
 
-            # self._drawn_artists = [self.line1, self.line2, self.line3, self.line4]
-
         return
 
 
 
-# Setup a signal slot mechanism, to send data to GUI in a thread-safe way.
-class Communicate(QObject):
-    data_signal = Signal(list)
-
-
-def ppgDataSendLoop(addData_callbackFunc, spObj):
-    global live_acquisition_flag, hold_acquisition_thread, nChannels
-    # Setup the signal-slot mechanism.
-    mySrc = Communicate()
-    mySrc.data_signal.connect(addData_callbackFunc)
-    value = []
-    buffersize = (nChannels + 1)*4*bytes.__sizeof__(bytes()) + 2*bytes.__sizeof__(bytes())    #4 sensor unsigned int and 1 tsVal unsigned long => 5 * 4 bytes + 2 bytes for \r\n
-
-    while(True):
-        if live_acquisition_flag and spObj.ser.is_open:
-            #Read data from serial port
-            try:
-                serial_data = spObj.ser.readline(buffersize)
-                serial_data = serial_data.split(b'\r\n')
-                serial_data = serial_data[0].split(b',')
-                #print(serial_data)
-            except:
-                serial_data = []
-                print('Serial port not open')
-
-            try:
-                value = []
-                for nCh in range(nChannels + 1):
-                    value.append(float(serial_data[nCh]))
-            except:
-                print('error in reading data', serial_data)
-                try:
-                    assert len(serial_data) == (nChannels + 1)  #data channels + time_stamp
-                except:
-                    print('Mismatch in the number of channels specified in JSON file and the serial data received from Arduino or microcontroller')
-
-            # time.sleep(0.01)
-            mySrc.data_signal.emit(value)  # <- Here you emit a signal!l
-
-        else:
-            if not hold_acquisition_thread:
-                break
-            else:
-                time.sleep(1)
-
 def main(app):
+    global hold_acquisition_thread
+
     if osname == 'Darwin':
         app.setStyle('Fusion')
     
     widget = PPG()
     widget.show()
     ret = app.exec()
-    del widget
 
+    del widget
+    hold_acquisition_thread = False
     if os.path.exists(temp_filename):
         os.remove(temp_filename)
 
