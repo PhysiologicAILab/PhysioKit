@@ -12,7 +12,7 @@
         "fs":250.0,
         "baudrate":2000000,
         "timed_acquisition": true,
-        "max_time_seconds": 30
+        "max_time_seconds": 120
     },
     "common":
     {
@@ -21,8 +21,8 @@
     "external_sync":
     {
         "enable": false,
-        "role": "server",
-        "tcp_ip": "localhost",
-        "tcp_port":1025
+        "role": "",
+        "tcp_ip": "",
+        "tcp_port":0
     }
 }
