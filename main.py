@@ -30,12 +30,13 @@ from utils.devices import serialPort
 from utils.external_sync import External_Sync
 
 
-global live_acquisition_flag, hold_acquisition_thread, nChannels, temp_filename, marker_event_status, sampling_rate
+global live_acquisition_flag, hold_acquisition_thread, nChannels, temp_filename, marker_event_status, sampling_rate, csvfile_handle
 live_acquisition_flag = False
 hold_acquisition_thread = True
 nChannels = 4                   #default
 marker_event_status = False
 sampling_rate = 250             #default
+csvfile_handle = None
 
 # Setup a signal slot mechanism, to send data to GUI in a thread-safe way.
 class Communicate(QObject):
@@ -113,14 +114,14 @@ class PPG(QWidget):
 
         self.myFig = None
 
-        global temp_filename
+        global temp_filename, csvfile_handle
         temp_utc_sec = str((datetime.now() - datetime(1970, 1, 1)).total_seconds())
         temp_utc_sec = temp_utc_sec.replace('.', '_')
         temp_filename = temp_utc_sec + "_temp.csv"
         self.csv_header = ['']
         self.ui.write_eventcode = ''
-        self.csvfile = open(temp_filename, 'w', encoding="utf", newline="")
-        self.writer = csv.writer(self.csvfile)
+        csvfile_handle = open(temp_filename, 'w', encoding="utf", newline="")
+        self.writer = csv.writer(csvfile_handle)
 
         ui_file.close()
 
@@ -230,9 +231,9 @@ class PPG(QWidget):
 
     
     def stop_record_process(self):
-        global temp_filename, marker_event_status
-        if not self.csvfile.closed:
-            self.csvfile.close()
+        global temp_filename, marker_event_status, csvfile_handle
+        if not csvfile_handle.closed:
+            csvfile_handle.close()
             time.sleep(1)
         self.save_file_path = os.path.join(self.ui.data_root_dir, self.ui.pid + "_" +
                                         self.ui.curr_exp_name + '_' + self.ui.curr_exp_condition + '_' + self.ui.utc_sec + '.csv')
@@ -252,8 +253,8 @@ class PPG(QWidget):
             self.myFig.event_toggle = True
 
         # prepare for next recording
-        self.csvfile = open(temp_filename, 'w', encoding="utf", newline="")
-        self.writer = csv.writer(self.csvfile)
+        csvfile_handle = open(temp_filename, 'w', encoding="utf", newline="")
+        self.writer = csv.writer(csvfile_handle)
         self.writer.writerow(self.csv_header)
 
 
@@ -303,7 +304,7 @@ class PPG(QWidget):
 
 
     def start_acquisition(self):
-        global live_acquisition_flag, temp_filename
+        global live_acquisition_flag, temp_filename, csvfile_handle
         if not live_acquisition_flag:
             live_acquisition_flag = True
             if not self.phys_data_acq_started_flag:
@@ -325,12 +326,12 @@ class PPG(QWidget):
             
             self.myFig.reset_draw()
             if os.path.exists(temp_filename):
-                if not self.csvfile.closed:
-                    self.csvfile.close()
+                if not csvfile_handle.closed:
+                    csvfile_handle.close()
                 os.remove(temp_filename)
 
-            self.csvfile = open(temp_filename, 'w', encoding="utf", newline="")
-            self.writer = csv.writer(self.csvfile)
+            csvfile_handle = open(temp_filename, 'w', encoding="utf", newline="")
+            self.writer = csv.writer(csvfile_handle)
             self.writer.writerow(self.csv_header)
 
             live_acquisition_flag = False
@@ -342,13 +343,13 @@ class PPG(QWidget):
 
     def start_record_process(self):
 
-        global temp_filename, marker_event_status
+        global temp_filename, marker_event_status, csvfile_handle
         self.ui.pushButton_record_data.setText("Staring to Record...")
         self.ui.pushButton_record_data.setEnabled(False)
 
         if not os.path.exists(temp_filename):
-            self.csvfile = open(temp_filename, 'w', encoding="utf", newline="")
-            self.writer = csv.writer(self.csvfile)
+            csvfile_handle = open(temp_filename, 'w', encoding="utf", newline="")
+            self.writer = csv.writer(csvfile_handle)
             self.writer.writerow(self.csv_header)
 
         sync_signal = False
@@ -576,7 +577,7 @@ class LivePlotFigCanvas(FigureCanvas, TimedAnimation):
 
 
 def main(app):
-    global hold_acquisition_thread
+    global hold_acquisition_thread, temp_filename, csvfile_handle
 
     if osname == 'Darwin':
         app.setStyle('Fusion')
@@ -587,7 +588,11 @@ def main(app):
 
     del widget
     hold_acquisition_thread = False
+
     if os.path.exists(temp_filename):
+        if not csvfile_handle.closed:
+            csvfile_handle.close()
+        time.sleep(0.2)
         os.remove(temp_filename)
 
     # sys.exit(ret)
