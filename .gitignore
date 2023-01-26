@@ -6,7 +6,7 @@ ui_form.py
 
 # Data files
 data**/**
-temp.csv
+**temp.csv
 
 # C extensions
 *.so

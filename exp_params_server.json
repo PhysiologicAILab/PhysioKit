@@ -20,7 +20,7 @@
     },
     "external_sync":
     {
-        "enable": false,
+        "enable": true,
         "role": "server",
         "tcp_ip": "localhost",
         "tcp_port":1025

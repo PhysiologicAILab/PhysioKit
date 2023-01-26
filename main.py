@@ -6,6 +6,7 @@ import shutil
 import numpy as np
 import csv
 from datetime import datetime
+
 import numpy as np
 
 from PySide6.QtWidgets import QApplication, QWidget, QGraphicsScene, QFileDialog
@@ -26,9 +27,10 @@ from matplotlib.figure import Figure
 
 from utils.data_processing_lib import lFilter, lFilter_moving_average
 from utils.devices import serialPort
-from datetime import datetime
+from utils.external_sync import External_Sync
 
-global live_acquisition_flag, hold_acquisition_thread, nChannels
+
+global live_acquisition_flag, hold_acquisition_thread, nChannels, temp_filename
 live_acquisition_flag = False
 hold_acquisition_thread = True
 nChannels = 4
@@ -49,6 +51,7 @@ class PPG(QWidget):
         self.ui.exp_loaded = False
 
         # Default params
+        self.ui.ext_sync_flag = False
         self.ui.fs = 250 #sampling rate
         self.ui.baudrate = 2000000
 
@@ -99,10 +102,14 @@ class PPG(QWidget):
         self.ui.listWidget_expConditions.currentItemChanged.connect(self.update_exp_condition)
 
         self.myFig = None
-        self.temp_filename = "temp.csv"
+
+        global temp_filename
+        temp_utc_sec = str((datetime.now() - datetime(1970, 1, 1)).total_seconds())
+        temp_utc_sec = temp_utc_sec.replace('.', '_')
+        temp_filename = temp_utc_sec + "_temp.csv"
         self.csv_header = ['']
         self.ui.write_eventcode = ''
-        self.csvfile = open(self.temp_filename, 'w', encoding="utf", newline="")
+        self.csvfile = open(temp_filename, 'w', encoding="utf", newline="")
         self.writer = csv.writer(self.csvfile)
 
         ui_file.close()
@@ -150,6 +157,14 @@ class PPG(QWidget):
             self.csv_header = self.ui.channels + ["arduino_ts", "event_code"]
             self.writer.writerow(self.csv_header)
 
+            # External Sync         
+            self.ui.ext_sync_flag = self.ui.params_dict["external_sync"]["enable"]
+            if self.ui.ext_sync_flag:
+                self.ui.sync_role = self.ui.params_dict["external_sync"]["role"]
+                self.ui.sync_ip = self.ui.params_dict["external_sync"]["tcp_ip"]
+                self.ui.sync_port = self.ui.params_dict["external_sync"]["tcp_port"]
+                self.ui.sync_obj = External_Sync(self.ui.sync_role, self.ui.sync_ip, self.ui.sync_port)
+
             self.ui.exp_loaded = True
             self.ui.pushButton_exp_params.setEnabled(False)
             self.ui.label_status.setText("Loaded experiment parameters successfully")
@@ -168,6 +183,7 @@ class PPG(QWidget):
 
     def addData_callbackFunc(self, value):
         # print("Add data: " + str(value))
+
         self.myFig.addData(value)
 
         if self.ui.data_record_flag:
@@ -184,13 +200,14 @@ class PPG(QWidget):
 
     
     def stop_record_process(self):
+        global temp_filename
         if not self.csvfile.closed:
             self.csvfile.close()
             time.sleep(1)
         self.save_file_path = os.path.join(self.ui.data_root_dir, self.ui.pid + "_" +
                                         self.ui.curr_exp_name + '_' + self.ui.curr_exp_condition + '_' + self.ui.utc_sec + '.csv')
-        if os.path.exists(self.temp_filename):
-            shutil.move(self.temp_filename, self.save_file_path)
+        if os.path.exists(temp_filename):
+            shutil.move(temp_filename, self.save_file_path)
             self.ui.label_status.setText("Recording stopped and data saved for: Exp - " + self.ui.curr_exp_name + "; Condition - " + self.ui.curr_exp_condition)
         else:
             self.ui.label_status.setText("Error saving data")
@@ -205,7 +222,7 @@ class PPG(QWidget):
             self.myFig.event_toggle = True
 
         # prepare for next recording
-        self.csvfile = open(self.temp_filename, 'w', encoding="utf", newline="")
+        self.csvfile = open(temp_filename, 'w', encoding="utf", newline="")
         self.writer = csv.writer(self.csvfile)
         self.writer.writerow(self.csv_header)
 
@@ -254,7 +271,7 @@ class PPG(QWidget):
 
 
     def start_acquisition(self):
-        global live_acquisition_flag
+        global live_acquisition_flag, temp_filename
         if not live_acquisition_flag:
             live_acquisition_flag = True
             if not self.ppgDataLoop_started:
@@ -274,12 +291,12 @@ class PPG(QWidget):
             # To reset the graph and clear the values
             
             self.myFig.reset_draw()
-            if os.path.exists(self.temp_filename):
+            if os.path.exists(temp_filename):
                 if not self.csvfile.closed:
                     self.csvfile.close()
-                os.remove(self.temp_filename)
+                os.remove(temp_filename)
 
-            self.csvfile = open(self.temp_filename, 'w', encoding="utf", newline="")
+            self.csvfile = open(temp_filename, 'w', encoding="utf", newline="")
             self.writer = csv.writer(self.csvfile)
             self.writer.writerow(self.csv_header)
 
@@ -290,14 +307,29 @@ class PPG(QWidget):
             self.ui.listWidget_expConditions.setEnabled(True)
 
 
-    
-    def record_data(self):
-        if not self.ui.data_record_flag:
-            if not os.path.exists(self.temp_filename):
-                self.csvfile = open(self.temp_filename, 'w', encoding="utf", newline="")
-                self.writer = csv.writer(self.csvfile)
-                self.writer.writerow(self.csv_header)
+    def start_record_process(self):
 
+        global temp_filename
+        self.ui.pushButton_record_data.setText("Staring to Record...")
+        self.ui.pushButton_record_data.setEnabled(False)
+
+        if not os.path.exists(temp_filename):
+            self.csvfile = open(temp_filename, 'w', encoding="utf", newline="")
+            self.writer = csv.writer(self.csvfile)
+            self.writer.writerow(self.csv_header)
+
+        sync_signal = False
+        if self.ui.ext_sync_flag:
+            if self.ui.sync_role == "server":
+                self.ui.label_status.setText("Server is ready, waiting for external sync to start recording")
+                sync_signal = self.ui.sync_obj.run_server()
+            elif self.ui.sync_role == "client":
+                self.ui.sync_obj.run_client()
+                sync_signal = True
+        else:
+            sync_signal = True
+
+        if sync_signal:
             self.ui.record_start_time = datetime.now()
             self.ui.data_record_flag = True
 
@@ -306,6 +338,8 @@ class PPG(QWidget):
 
             # self.ui.utc_timestamp_signal = datetime.utcnow()
             self.ui.pushButton_record_data.setText("Stop Recording")
+            self.ui.pushButton_record_data.setEnabled(True)
+
             if self.ui.timed_acquisition:
                 self.ui.label_status.setText("Timed Recording started for: Exp - " + self.ui.curr_exp_name + "; Condition - " + self.ui.curr_exp_condition + "; Max-Time: " + str(self.ui.max_acquisition_time))
             else:
@@ -314,11 +348,18 @@ class PPG(QWidget):
             self.ui.lineEdit_Event.setEnabled(True)
             self.ui.pushButton_Event.setEnabled(True)
             self.ui.event_status = False
+
             try:
                 self.ui.eventcode = int(self.ui.lineEdit_Event.text())
             except:
                 self.ui.label_status.setText("Incorrect entry for evencode, using eventcode = 0")
                 self.ui.eventcode = 0
+    
+
+    def record_data(self):
+        if not self.ui.data_record_flag:
+            start_record_thread = threading.Thread(name='start_record', target=self.start_record_process, daemon=True)
+            start_record_thread.start()
 
         else:
             self.ui.data_record_flag = False
@@ -401,16 +442,11 @@ class LivePlotFigCanvas(FigureCanvas, TimedAnimation):
 
 
     def addData(self, value):
-        global live_acquisition_flag
-        val_filt = []
-        for nCh in range(self.nChannels):
-            val_filt.append(self.filt_objs[str(nCh)].lfilt(value[nCh]))
+        self.count_frame += 1
 
-        if live_acquisition_flag: 
-            self.count_frame += 1
-            for nCh in range(self.nChannels):
-                self.plot_signals[nCh] = np.roll(self.plot_signals[nCh], -1)
-                self.plot_signals[nCh][-1] = val_filt[nCh]
+        for nCh in range(self.nChannels):
+            self.plot_signals[nCh] = np.roll(self.plot_signals[nCh], -1)
+            self.plot_signals[nCh][-1] = self.filt_objs[str(nCh)].lfilt(value[nCh])
         return
 
 
@@ -510,9 +546,8 @@ def main(app):
     ret = app.exec()
     del widget
 
-    fn = "temp.csv"
-    if os.path.exists(fn):
-        os.remove(fn)
+    if os.path.exists(temp_filename):
+        os.remove(temp_filename)
 
     # sys.exit(ret)
     return
