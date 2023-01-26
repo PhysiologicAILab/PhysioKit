@@ -22,7 +22,7 @@
     {
         "enable": true,
         "role": "server",
-        "tcp_ip": "localhost",
-        "tcp_port":1025
+        "tcp_ip": "",
+        "tcp_port":7777
     }
 }
