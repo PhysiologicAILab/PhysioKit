@@ -485,7 +485,7 @@ class LivePlotFigCanvas(FigureCanvas, TimedAnimation):
         self.axs = {}
         self.lines = {}
 
-        self.fig = Figure(figsize=(12.5, 7), layout="constrained")
+        self.fig = Figure(figsize=(13.8, 7.5), layout="tight")
 
         for nCh in range(self.nChannels):
             self.plot_signals.append(1000 * np.ones(self.max_plot_time * sampling_rate))
