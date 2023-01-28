@@ -445,18 +445,18 @@ class PPG(QWidget):
                                 stop_record_thread = threading.Thread(name='stop_record', target=self.stop_record_process, daemon=True)
                                 stop_record_thread.start()
 
+                    # time.sleep(0.01)
+                    if self.ui.data_record_flag:
+                        mySrc.data_signal.emit(value)
+
+                    mySrc.data_signal_filt.emit(value_filt)
+
                 except:
                     print('error in reading data', serial_data)
                     try:
                         assert len(serial_data) == (nChannels + 1)  #data channels + time_stamp
                     except:
                         print('Mismatch in the number of channels specified in JSON file and the serial data received from Arduino or microcontroller')
-
-                # time.sleep(0.01)
-                if self.ui.data_record_flag:
-                    mySrc.data_signal.emit(value)
-
-                mySrc.data_signal_filt.emit(value_filt)
 
             else:
                 if not hold_acquisition_thread:
