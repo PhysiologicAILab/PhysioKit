@@ -1,0 +1,37 @@
+import csv
+import numpy as np
+
+def load_numpy_data(filepath):
+    sig = np.load(filepath)
+    return sig
+
+def load_csv_data_ppg(filepath):
+    ppg1 = []
+    ppg2 = []
+    arduino_ts = []
+    event_code = []
+    skip_first = True
+    with open(filepath, newline='') as csvfile:
+        csvreader = csv.reader(csvfile, delimiter=',')
+        for ln in csvreader:
+            if skip_first:
+                print(ln)
+                skip_first = False
+            else:
+                # print(ln)
+                # break
+                ppg1.append(float(ln[2]))
+                ppg2.append(float(ln[3]))
+                arduino_ts.append(float(ln[4]))
+                if ln[5] != '':
+                    event_code.append(float(ln[5]))
+                else:
+                    event_code.append(-1)
+
+    ppg1 = np.array(ppg1)
+    ppg2 = np.array(ppg2)
+    arduino_ts = np.array(arduino_ts)
+    arduino_ts = (arduino_ts - arduino_ts[0])/1000
+    event_code = np.array(event_code)
+
+    return ppg1, ppg2, arduino_ts, event_code
