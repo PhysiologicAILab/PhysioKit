@@ -1,0 +1,28 @@
+{
+    "exp":
+    {
+        "study_name": "COMP0053",
+        "conditions": ["baseline", "expCond1"],
+        "channels": ["Resp", "PPG Ear"],
+        "channel_types": ["resp", "ppg"],
+        "channel_plot_colors": ["b", "g"]
+    },
+    "acq_params":
+    {
+        "fs":250.0,
+        "baudrate":38400,
+        "timed_acquisition": true,
+        "max_time_seconds": 120
+    },
+    "common":
+    {
+        "datapath":"data"
+    },
+    "external_sync":
+    {
+        "enable": false,
+        "role": "",
+        "tcp_ip": "",
+        "tcp_port":0
+    }
+}
