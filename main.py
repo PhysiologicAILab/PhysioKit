@@ -344,7 +344,7 @@ class PPG(QWidget):
     def start_record_process(self):
 
         global temp_filename, marker_event_status, csvfile_handle
-        self.ui.pushButton_record_data.setText("Staring to Record...")
+        self.ui.pushButton_record_data.setText("Starting to Record...")
         self.ui.pushButton_record_data.setEnabled(False)
 
         if not os.path.exists(temp_filename):
