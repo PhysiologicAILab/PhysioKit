@@ -61,7 +61,7 @@ class PPG(QWidget):
         global sampling_rate
         # Default params
         self.ext_sync_flag = False
-        self.ui.baudrate = 2000000
+        self.ui.baudrate = 38400 #2000000
 
         self.resp_lowcut = 0.1
         self.resp_highcut = 0.4

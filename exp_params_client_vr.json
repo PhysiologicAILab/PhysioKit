@@ -1,0 +1,28 @@
+{
+    "exp":
+    {
+        "study_name": "Synchrony_Study",
+        "conditions": ["baseline", "A_Passive", "B_Easy", "C_Hard"],
+        "channels": ["EDA", "Resp", "PPG Finger", "PPG Ear"],
+        "channel_types": ["eda", "resp", "ppg", "ppg"],
+        "channel_plot_colors": ["b", "g", "r", "m"]
+    },
+    "acq_params":
+    {
+        "fs":250.0,
+        "baudrate":2000000,
+        "timed_acquisition": true,
+        "max_time_seconds": 300
+    },
+    "common":
+    {
+        "datapath":"data"
+    },
+    "external_sync":
+    {
+        "enable": true,
+        "role": "client",
+        "tcp_ip": "128.16.10.120",
+        "tcp_port":7777
+    }
+}
