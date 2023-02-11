@@ -28,6 +28,8 @@ from matplotlib.figure import Figure
 from utils.data_processing_lib import lFilter, lFilter_moving_average
 from utils.devices import serialPort
 from utils.external_sync import External_Sync
+import argparse
+
 
 
 global live_acquisition_flag, hold_acquisition_thread, nChannels, temp_filename, marker_event_status, sampling_rate, csvfile_handle
@@ -45,11 +47,11 @@ class Communicate(QObject):
 
 
 class PPG(QWidget):
-    def __init__(self):
+    def __init__(self, args_parser):
         super(PPG, self).__init__()
-        self.load_ui()
+        self.load_ui(args_parser)
         
-    def load_ui(self):
+    def load_ui(self, args_parser):
         loader = QUiLoader()
         path = os.path.join(os.path.dirname(__file__), "form.ui")
         ui_file = QFile(path)
@@ -61,7 +63,7 @@ class PPG(QWidget):
         global sampling_rate
         # Default params
         self.ext_sync_flag = False
-        self.ui.baudrate = 38400 #2000000
+        self.ui.baudrate = 115200
 
         self.resp_lowcut = 0.1
         self.resp_highcut = 0.4
@@ -111,6 +113,40 @@ class PPG(QWidget):
         self.ui.pushButton_Event.pressed.connect(self.toggle_marking)
 
         self.ui.listWidget_expConditions.currentItemChanged.connect(self.update_exp_condition)
+
+        sw_config_path = args_parser.config 
+        self.ui.sw_config_dict = None
+        try:
+            with open(sw_config_path) as json_file:
+                self.ui.sw_config_dict = json.load(json_file)
+        except:
+            self.ui.label_status.setText("Error opening the JSON file")
+
+        # External Sync         
+        self.ext_sync_flag = self.ui.sw_config_dict["external_sync"]["enable"]
+        if self.ext_sync_flag:
+            self.ui.label_sync.setEnabled(True)
+            self.sync_role = self.ui.sw_config_dict["external_sync"]["role"]
+            if self.sync_role == "server":
+                self.sync_port = self.ui.sw_config_dict["server"]["tcp_port"]
+                self.ui.pushButton_sync.setEnabled(True)
+                self.ui.pushButton_sync.setText("Start TCP Server")
+            elif self.sync_role == "client":
+                self.sync_port = self.ui.sw_config_dict["client"]["tcp_port"]
+                self.sync_ip = self.ui.sw_config_dict["client"]["server_ip"]
+                self.ui.pushButton_sync.setEnabled(True)
+                self.ui.pushButton_sync.setText("Connect with Server")
+
+            self.sync_obj = External_Sync(self.sync_role, self.sync_ip, self.sync_port)
+
+            if self.sync_role == "server":
+                self.ui.label_status.setText("Server is starting to accept client connection...")
+                start_server_thread = threading.Thread(name='start_server', target=self.sync_obj.start_accepting_client_connection, daemon=True)
+                start_server_thread.start()
+
+            elif self.sync_role == "client":
+                self.ui.label_status.setText("Client is attempting to connect with server with IP address = " + self.sync_ip)
+                self.sync_obj.connect_with_server()
 
         self.myFig = None
 
@@ -186,23 +222,6 @@ class PPG(QWidget):
                         self.filt_objs[str(nCh)] = lFilter(self.resp_lowcut, self.resp_highcut, sampling_rate, order=self.filt_order)
                     elif self.ui.channel_types[nCh] == 'ppg':
                         self.filt_objs[str(nCh)] = lFilter(self.ppg_lowcut, self.ppg_highcut, sampling_rate, order=self.filt_order)
-
-                # External Sync         
-                self.ext_sync_flag = self.ui.params_dict["external_sync"]["enable"]
-                if self.ext_sync_flag:
-                    self.sync_role = self.ui.params_dict["external_sync"]["role"]
-                    self.sync_ip = self.ui.params_dict["external_sync"]["tcp_ip"]
-                    self.sync_port = self.ui.params_dict["external_sync"]["tcp_port"]
-                    self.sync_obj = External_Sync(self.sync_role, self.sync_ip, self.sync_port)
-
-                    if self.sync_role == "server":
-                        self.ui.label_status.setText("Server is starting to accept client connection...")
-                        start_server_thread = threading.Thread(name='start_server', target=self.sync_obj.start_accepting_client_connection, daemon=True)
-                        start_server_thread.start()
-
-                    elif self.sync_role == "client":
-                        self.ui.label_status.setText("Client is attempting to connect with server...")
-                        self.sync_obj.connect_with_server()
 
                 # # Place the matplotlib figure
                 self.myFig = LivePlotFigCanvas(channels = self.ui.channels, ch_colors = self.ui.channel_plot_colors)
@@ -355,13 +374,14 @@ class PPG(QWidget):
         sync_signal = False
         if self.ext_sync_flag:
             if self.sync_role == "server":
-                if self.sync_obj.client_connect_status:
-                    self.sync_obj.send_sync_to_client()
-                else:
-                    self.ui.label_status.setText('Client not connected for sync at: IP=' + self.sync_ip + '; port=' + self.sync_port)
+                self.sync_obj.send_sync_to_client()
                 sync_signal = True
             else:
                 sync_signal = self.sync_obj.wait_for_server_sync()
+                if not sync_signal:
+                    self.ui.label_status.setText('Server not running... Please retry...')
+                    self.ui.pushButton_record_data.setText("Record Data")
+                    self.ui.pushButton_record_data.setEnabled(True)
         else:
             sync_signal = True
 
@@ -575,14 +595,13 @@ class LivePlotFigCanvas(FigureCanvas, TimedAnimation):
         return
 
 
-
-def main(app):
+def main(app, args_parser):
     global hold_acquisition_thread, temp_filename, csvfile_handle
 
     if osname == 'Darwin':
         app.setStyle('Fusion')
     
-    widget = PPG()
+    widget = PPG(args_parser)
     widget.show()
     ret = app.exec()
 
@@ -599,6 +618,13 @@ def main(app):
     return
 
 if __name__ == '__main__':
+
+    parser = argparse.ArgumentParser()
+    parser.add_argument('--config', default='configs/sw_config', type=str,
+                        dest='config', help='Software Config file-path')
+    parser.add_argument('REMAIN', nargs='*')
+    args_parser = parser.parse_args()
+
     # Create the application instance.
     app = QApplication([])
-    main(app)
+    main(app, args_parser)

@@ -1,8 +1,8 @@
 {
     "exp":
     {
-        "study_name": "S1",
-        "conditions": ["baseline", "mathEasy", "mathDifficult", "movement"],
+        "study_name": "Study1",
+        "conditions": ["baseline", "expCond1"],
         "channels": ["EDA", "Resp", "PPG Finger", "PPG Ear"],
         "channel_types": ["eda", "resp", "ppg", "ppg"],
         "channel_plot_colors": ["b", "g", "r", "m"]
@@ -10,19 +10,12 @@
     "acq_params":
     {
         "fs":250.0,
-        "baudrate":2000000,
+        "baudrate":115200,
         "timed_acquisition": true,
-        "max_time_seconds": 120
+        "max_time_seconds": 180
     },
     "common":
     {
         "datapath":"data"
-    },
-    "external_sync":
-    {
-        "enable": false,
-        "role": "",
-        "tcp_ip": "",
-        "tcp_port":0
     }
 }

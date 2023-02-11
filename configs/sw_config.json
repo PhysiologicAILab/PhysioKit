@@ -1,0 +1,16 @@
+{
+    "external_sync":
+    {
+        "enable": false,
+        "role": ""
+    },
+    "server":
+    {
+        "tcp_port": 7777
+    },
+    "client":
+    {
+        "server_ip": "localhost",
+        "tcp_port": 7777
+    }
+}

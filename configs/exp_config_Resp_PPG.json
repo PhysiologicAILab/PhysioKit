@@ -1,7 +1,7 @@
 {
     "exp":
     {
-        "study_name": "COMP0053",
+        "study_name": "Study1",
         "conditions": ["baseline", "expCond1"],
         "channels": ["Resp", "PPG Ear"],
         "channel_types": ["resp", "ppg"],
@@ -10,19 +10,12 @@
     "acq_params":
     {
         "fs":250.0,
-        "baudrate":38400,
+        "baudrate":115200,
         "timed_acquisition": true,
-        "max_time_seconds": 120
+        "max_time_seconds": 180
     },
     "common":
     {
         "datapath":"data"
-    },
-    "external_sync":
-    {
-        "enable": false,
-        "role": "",
-        "tcp_ip": "",
-        "tcp_port":0
     }
 }
