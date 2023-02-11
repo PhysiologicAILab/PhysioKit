@@ -123,30 +123,26 @@ class PPG(QWidget):
             self.ui.label_status.setText("Error opening the JSON file")
 
         # External Sync         
-        self.ext_sync_flag = self.ui.sw_config_dict["external_sync"]["enable"]
+        self.ext_sync_flag = bool(self.ui.sw_config_dict["external_sync"]["enable"])
         if self.ext_sync_flag:
             self.ui.label_sync.setEnabled(True)
             self.sync_role = self.ui.sw_config_dict["external_sync"]["role"]
             if self.sync_role == "server":
+                self.sync_ip = ""
                 self.sync_port = self.ui.sw_config_dict["server"]["tcp_port"]
                 self.ui.pushButton_sync.setEnabled(True)
                 self.ui.pushButton_sync.setText("Start TCP Server")
             elif self.sync_role == "client":
-                self.sync_port = self.ui.sw_config_dict["client"]["tcp_port"]
                 self.sync_ip = self.ui.sw_config_dict["client"]["server_ip"]
+                self.sync_port = self.ui.sw_config_dict["client"]["tcp_port"]
                 self.ui.pushButton_sync.setEnabled(True)
                 self.ui.pushButton_sync.setText("Connect with Server")
-
+            else:
+                self.ui.label_status.setText("Invalid configuration in SW config file. Please check and start the application again...")
+                return
+            
             self.sync_obj = External_Sync(self.sync_role, self.sync_ip, self.sync_port)
-
-            if self.sync_role == "server":
-                self.ui.label_status.setText("Server is starting to accept client connection...")
-                start_server_thread = threading.Thread(name='start_server', target=self.sync_obj.start_accepting_client_connection, daemon=True)
-                start_server_thread.start()
-
-            elif self.sync_role == "client":
-                self.ui.label_status.setText("Client is attempting to connect with server with IP address = " + self.sync_ip)
-                self.sync_obj.connect_with_server()
+            self.ui.pushButton_sync.pressed.connect(self.setup_external_sync)
 
         self.myFig = None
 
@@ -167,6 +163,20 @@ class PPG(QWidget):
         self.ui.curr_exp_condition = self.ui.conditions[self.ui.listWidget_expConditions.currentRow()]
         self.ui.label_status.setText("Experiment Condition Selected: " + self.ui.curr_exp_condition)
 
+
+    def setup_external_sync(self):
+        if self.sync_role == "server":
+            self.ui.label_status.setText("Server is starting to accept client connection...")
+            start_server_thread = threading.Thread(name='start_server', target=self.sync_obj.start_accepting_client_connection, daemon=True)
+            start_server_thread.start()
+            self.ui.pushButton_sync.setText("Running Server")
+
+        elif self.sync_role == "client":
+            self.ui.label_status.setText("Client is attempting to connect with server with IP address = " + self.sync_ip)
+            self.sync_obj.connect_with_server()
+            self.ui.pushButton_sync.setText("Running Client")
+        
+        self.ui.pushButton_sync.setEnabled(False)
 
 
     def load_exp_params(self):
@@ -459,15 +469,15 @@ class PPG(QWidget):
                     if self.ui.data_record_flag:
                         if self.ui.timed_acquisition:
                             elapsed_time = (datetime.now() - self.ui.record_start_time).total_seconds()
-                            # self.ui.label_status.setText("Time remaining: " + str(self.ui.max_acquisition_time - elapsed_time))
+                            self.ui.label_status.setText("Time remaining: " + f'{self.ui.max_acquisition_time - elapsed_time}:.3f')
                             if (elapsed_time >= self.ui.max_acquisition_time):
                                 self.ui.data_record_flag = False
                                 stop_record_thread = threading.Thread(name='stop_record', target=self.stop_record_process, daemon=True)
                                 stop_record_thread.start()
-
-                    # time.sleep(0.01)
-                    if self.ui.data_record_flag:
-                        mySrc.data_signal.emit(value)
+                            else:
+                                mySrc.data_signal.emit(value)
+                        else:
+                            mySrc.data_signal.emit(value)
 
                     mySrc.data_signal_filt.emit(value_filt)
 

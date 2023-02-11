@@ -34,5 +34,5 @@ void loop() {
     SerialUSB.print(",");
     SerialUSB.println(currentMillis);    
 
-    delayMicroseconds(3560); // 250 samples per second, ~0.5ms spent in processing    
+    delayMicroseconds(3500); // 250 samples per second, ~0.5ms spent in processing    
 }
