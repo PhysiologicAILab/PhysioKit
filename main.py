@@ -469,7 +469,7 @@ class PPG(QWidget):
                     if self.ui.data_record_flag:
                         if self.ui.timed_acquisition:
                             elapsed_time = (datetime.now() - self.ui.record_start_time).total_seconds()
-                            self.ui.label_status.setText("Time remaining: " + f'{self.ui.max_acquisition_time - elapsed_time}:.3f')
+                            self.ui.label_status.setText("Time remaining: " + str(round(self.ui.max_acquisition_time - elapsed_time, 3)))
                             if (elapsed_time >= self.ui.max_acquisition_time):
                                 self.ui.data_record_flag = False
                                 stop_record_thread = threading.Thread(name='stop_record', target=self.stop_record_process, daemon=True)

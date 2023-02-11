@@ -388,8 +388,15 @@
          </item>
          <item row="1" column="0">
           <widget class="QPushButton" name="pushButton_exp_params">
+           <property name="sizePolicy">
+            <sizepolicy hsizetype="Minimum" vsizetype="Fixed">
+             <horstretch>0</horstretch>
+             <verstretch>0</verstretch>
+            </sizepolicy>
+           </property>
            <property name="text">
-            <string>Load Experiment</string>
+            <string>Load 
+Experiment</string>
            </property>
           </widget>
          </item>
