@@ -1,8 +1,15 @@
 {
+    "acq_params": {
+        "fs": 250.0,
+        "baudrate": 115200
+    },
+    "exp":{
+        "channel_plot_colors": ["b", "g", "r", "m"]
+    },
     "external_sync":
     {
         "enable": true,
-        "role": "server"
+        "role": "client"
     },
     "server":
     {

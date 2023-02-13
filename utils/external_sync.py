@@ -63,7 +63,13 @@ class External_Sync(object):
 
 
     def connect_with_server(self):
-        self.client_conn = socket.create_connection((self.ip, self.port))
+        status = False
+        try:
+            self.client_conn = socket.create_connection((self.ip, self.port))
+            status = True
+        except:
+            print("Connection could not be established... Please retry...")
+        return status
 
 
     def wait_for_server_sync(self) -> bool:

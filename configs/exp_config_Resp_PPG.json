@@ -5,17 +5,8 @@
         "conditions": ["baseline", "expCond1"],
         "channels": ["Resp", "PPG Ear"],
         "channel_types": ["resp", "ppg"],
-        "channel_plot_colors": ["b", "g"]
-    },
-    "acq_params":
-    {
-        "fs":250.0,
-        "baudrate":115200,
         "timed_acquisition": true,
-        "max_time_seconds": 180
-    },
-    "common":
-    {
-        "datapath":"data"
+        "max_time_seconds": [180, 180],
+        "datapath": "data"
     }
 }

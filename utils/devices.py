@@ -14,10 +14,15 @@ class serialPort():
         self.ser.parity = serial.PARITY_NONE
         self.ser.stopbits = serial.STOPBITS_ONE
         # self.ser.bytesize = serial.EIGHTBITS
-        self.ser.open()
+        try:
+            self.ser.open()
+            return self.ser.is_open
+        except serial.serialutil.SerialException:
+            return False
+
         # self.ser.reset_input_buffer()
         # self.ser.write(str.encode('1\r\n', 'UTF-8'))
-        return self.ser.is_open
+        
 
     def disconnectPort(self):
         self.ser.close()
