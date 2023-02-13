@@ -51,7 +51,7 @@ void loop() {
     processTimeMicros = micros() - startMicros;  //get the current "time" (actually the number of microseconds since the program started)
     SerialUSB.println(processTimeMicros);
 
-    processTimeMicros = processTimeMicros + 100;
+    processTimeMicros = processTimeMicros + 200;
     if ((4000 - processTimeMicros) > 0)
     {
       delayMicros = 4000 - processTimeMicros;
