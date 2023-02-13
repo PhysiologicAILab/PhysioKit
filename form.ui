@@ -259,7 +259,7 @@
          <item row="1" column="0">
           <widget class="QPushButton" name="pushButton_exp_params">
            <property name="sizePolicy">
-            <sizepolicy hsizetype="Minimum" vsizetype="Fixed">
+            <sizepolicy hsizetype="Minimum" vsizetype="Preferred">
              <horstretch>0</horstretch>
              <verstretch>0</verstretch>
             </sizepolicy>
@@ -442,7 +442,7 @@ Conditions</string>
          <item row="1" column="1">
           <widget class="QComboBox" name="comboBox_comport">
            <property name="sizePolicy">
-            <sizepolicy hsizetype="Fixed" vsizetype="Preferred">
+            <sizepolicy hsizetype="Minimum" vsizetype="Preferred">
              <horstretch>0</horstretch>
              <verstretch>0</verstretch>
             </sizepolicy>

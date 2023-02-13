@@ -4,8 +4,9 @@ int RespPin = 1;
 int PulseSensor1Pin = 2;        // Pulse Sensor PURPLE WIRE connected to ANALOG PIN 2
 int PulseSensor2Pin = 3;        // Pulse Sensor PURPLE WIRE connected to ANALOG PIN 3
 
-unsigned long startMillis;  //some global variables available anywhere in the program
-unsigned long currentMillis;
+unsigned long startMicros = 0;  //some global variables available anywhere in the program
+int processTimeMicros = 0;
+int delayMicros = 0;
 unsigned int edaVal = 0;
 unsigned int respVal = 0;
 unsigned int ppg1Val = 0;
@@ -19,13 +20,12 @@ void setup() {
    pinMode(RespPin, INPUT);
    pinMode(PulseSensor1Pin, INPUT);
    pinMode(PulseSensor2Pin, INPUT);
-   startMillis = millis();  //initial start time
 }
 
 // The Main Loop Function
 void loop() {
     
-    currentMillis = millis() - startMillis;  //get the current "time" (actually the number of milliseconds since the program started)
+    startMicros = micros();  //initial start time
     SerialUSB.flush();
     
     analogReadResolution(12);
@@ -47,9 +47,20 @@ void loop() {
     SerialUSB.print(ppg1Val);                    // Send the ppg1Val value to Serial.
     SerialUSB.print(",");
     SerialUSB.print(ppg2Val);                    // Send the ppg2Val value to Serial.
-    SerialUSB.print(",");
-    SerialUSB.println(currentMillis);    
+    SerialUSB.print(","); 
+    processTimeMicros = micros() - startMicros;  //get the current "time" (actually the number of microseconds since the program started)
+    SerialUSB.println(processTimeMicros);
 
-    delayMicroseconds(3400); // 250 samples per second, ~0.6ms spent in processing
+    processTimeMicros = processTimeMicros + 100;
+    if ((4000 - processTimeMicros) > 0)
+    {
+      delayMicros = 4000 - processTimeMicros;
+    }
+    else
+    {
+      delayMicros = 1;
+    }
+
+    delayMicroseconds(delayMicros); // 250 samples per second, ~0.6ms spent in processing
     
 }
