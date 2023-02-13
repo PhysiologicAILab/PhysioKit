@@ -120,7 +120,7 @@ class PPG(QWidget):
         global osname
         for port, desc, hwid in sorted(self.ui.spObj.ports):
             # print("{}: {} [{}]".format(port, desc, hwid))
-            self.ui.ser_ports_desc.append(str(port) + "; " + str(desc) + "; " + str(hwid))
+            self.ui.ser_ports_desc.append(str(port))
             if osname == 'Darwin':
                 port = port.replace('/dev/cu', '/dev/tty')
             self.ui.ser_port_names.append(port)
@@ -398,7 +398,7 @@ class PPG(QWidget):
     def start_record_process(self):
 
         global temp_filename, marker_event_status, csvfile_handle
-        self.ui.pushButton_record_data.setText("Starting to Record...")
+        self.ui.pushButton_record_data.setText("Waiting")
         self.ui.pushButton_record_data.setEnabled(False)
 
         if not os.path.exists(temp_filename):
@@ -498,11 +498,11 @@ class PPG(QWidget):
                     value = []
                     value_filt = []
                     for nCh in range(nChannels):
-                        serial_val = float(serial_data[nCh])
+                        serial_val = int(serial_data[nCh])
                         value.append(serial_val)
                         value_filt.append(self.filt_objs[str(nCh)].lfilt(serial_val))
 
-                    serial_val = float(serial_data[nChannels])
+                    serial_val = int(serial_data[nChannels])
                     value.append(serial_val)
 
                     if self.ui.data_record_flag:
