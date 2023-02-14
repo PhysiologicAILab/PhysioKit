@@ -17,7 +17,7 @@
     },
     "client":
     {
-        "server_ip": "localhost",
+        "server_ip": "128.16.10.120",
         "tcp_port": 7777
     }
 }

@@ -46,6 +46,7 @@ class Communicate(QObject):
     data_signal_filt = Signal(list)
     time_signal = Signal(int)
     log_signal = Signal(str)
+    stop_signal = Signal(bool)
 
 
 class PPG(QWidget):
@@ -456,6 +457,11 @@ class PPG(QWidget):
             stop_record_thread = threading.Thread(name='stop_record', target=self.stop_record_process, daemon=True)
             stop_record_thread.start()
 
+    def stop_record_from_thread(self, stop_signal):
+        if stop_signal:
+            self.ui.data_record_flag = False
+            stop_record_thread = threading.Thread(name='stop_record', target=self.stop_record_process, daemon=True)
+            stop_record_thread.start()
 
     def update_time_elapsed(self, elapsed_time):
         if self.ui.timed_acquisition:
@@ -475,6 +481,7 @@ class PPG(QWidget):
         mySrc.data_signal_filt.connect(self.myFig.addData)
         mySrc.time_signal.connect(self.update_time_elapsed)
         mySrc.log_signal.connect(self.update_log)
+        mySrc.stop_signal.connect(self.stop_record_from_thread)
 
         value = []
         value_filt = []
@@ -510,8 +517,9 @@ class PPG(QWidget):
                             elapsed_time = (datetime.now() - self.ui.record_start_time).total_seconds()*1000
                             if (elapsed_time >= self.ui.curr_acquisition_time_ms):
                                 self.ui.data_record_flag = False
-                                stop_record_thread = threading.Thread(name='stop_record', target=self.stop_record_process, daemon=True)
-                                stop_record_thread.start()
+                                mySrc.stop_signal.emit(True)
+                                # stop_record_thread = threading.Thread(name='stop_record', target=self.stop_record_process, daemon=True)
+                                # stop_record_thread.start()
                                 prev_elapsed_time = 0
                                 curr_elapsed_time = 0
                                 
