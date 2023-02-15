@@ -1,0 +1,12 @@
+{
+    "exp":
+    {
+        "study_name": "Study1",
+        "conditions": ["baseline", "mathEasy", "mathDifficult", "movement"],
+        "channels": ["EDA", "Resp", "PPG Finger", "PPG Ear"],
+        "channel_types": ["eda", "resp", "ppg", "ppg"],
+        "timed_acquisition": true,
+        "max_time_seconds": [180, 180, 180, 180],
+        "datapath": "data"
+    }
+}

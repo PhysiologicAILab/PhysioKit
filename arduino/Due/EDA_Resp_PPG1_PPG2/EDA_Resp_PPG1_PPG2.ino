@@ -11,8 +11,9 @@ unsigned int edaVal = 0;
 unsigned int respVal = 0;
 unsigned int ppg1Val = 0;
 unsigned int ppg2Val = 0;                // holds the incoming raw data. Signal value can range from 0-1024
+int sampling_rate = 250;
+int inter_sample_interval_us = int(round(float(1000000 / sampling_rate)));
 
-  
 // The SetUp Function:
 void setup() {
    SerialUSB.begin(2000000);         // Set's up Serial Communication at certain speed.
@@ -52,15 +53,9 @@ void loop() {
     SerialUSB.println(processTimeMicros);
 
     processTimeMicros = processTimeMicros + 150;
-    if ((4000 - processTimeMicros) > 0)
+    if ((inter_sample_interval_us - processTimeMicros) > 0)
     {
-      delayMicros = 4000 - processTimeMicros;
+      delayMicros = inter_sample_interval_us - processTimeMicros;
+      delayMicroseconds(delayMicros); 
     }
-    else
-    {
-      delayMicros = 1;
-    }
-
-    delayMicroseconds(delayMicros); // 250 samples per second, ~0.6ms spent in processing
-    
 }

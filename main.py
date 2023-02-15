@@ -1,4 +1,5 @@
 # This Python file uses the following encoding: utf-8
+from utils.external_sync import ServerThread, ClientThread
 import threading
 import time
 import json
@@ -27,7 +28,6 @@ from matplotlib.figure import Figure
 
 from utils.data_processing_lib import lFilter, lFilter_moving_average
 from utils.devices import serialPort
-from utils.external_sync import External_Sync
 import argparse
 
 
@@ -51,7 +51,7 @@ class Communicate(QObject):
 
 class PPG(QWidget):
     def __init__(self, args_parser):
-        super(PPG, self).__init__()
+        super(PPG, self).__init__(parent=None)
         self.load_ui(args_parser)
         
     def load_ui(self, args_parser):
@@ -103,17 +103,24 @@ class PPG(QWidget):
                     self.sync_ip = ""
                     self.sync_port = self.ui.sw_config_dict["server"]["tcp_port"]
                     self.ui.pushButton_sync.setEnabled(True)
-                    self.ui.pushButton_sync.setText("Start TCP Server")
+                    self.ui.pushButton_sync.setText("Start TCP Server")                    
+                    self.server_thread = ServerThread(self.sync_ip, self.sync_port, parent=self)
+                    self.server_thread.update.connect(self.update_log)
+
                 elif self.sync_role == "client":
                     self.sync_ip = self.ui.sw_config_dict["client"]["server_ip"]
                     self.sync_port = self.ui.sw_config_dict["client"]["tcp_port"]
                     self.ui.pushButton_sync.setEnabled(True)
                     self.ui.pushButton_sync.setText("Connect with Server")
+                    self.client_thread = ClientThread(self.sync_ip, self.sync_port, parent=self)
+                    self.client_thread.connect_update.connect(self.client_connect_status)
+                    self.client_thread.sync_update.connect(self.update_sync_flag)
+                    self.server_sync_available = False
+
                 else:
                     print("Invalid role specified for external sync settings in SW config file. Please check and start the application again...")
                     return
 
-                self.sync_obj = External_Sync(self.sync_role, self.sync_ip, self.sync_port)
                 self.ui.pushButton_sync.pressed.connect(self.setup_external_sync)
         except:
             print("Invalid configuration in SW config file. Please check and start the application again...")
@@ -166,6 +173,25 @@ class PPG(QWidget):
         ui_file.close()
 
 
+    def closeEvent(self, event):
+        global hold_acquisition_thread, temp_filename, csvfile_handle, live_acquisition_flag
+        live_acquisition_flag = False
+        hold_acquisition_thread = False
+
+        if self.ext_sync_flag:
+            if self.sync_role == "server":
+                if self.server_thread.isRunning():
+                    self.server_thread.stop()
+            else:
+                if self.client_thread.isRunning():
+                    self.client_thread.stop()
+
+        if os.path.exists(temp_filename):
+            if not csvfile_handle.closed:
+                csvfile_handle.close()
+            time.sleep(0.2)
+            os.remove(temp_filename)
+
 
     def update_exp_condition(self):
         indx = self.ui.listWidget_expConditions.currentRow()
@@ -178,23 +204,29 @@ class PPG(QWidget):
 
     def setup_external_sync(self):
         if self.sync_role == "server":
-            self.ui.label_status.setText("Server is starting...")
-            start_server_thread = threading.Thread(name='start_server', target=self.sync_obj.start_accepting_client_connection, daemon=True)
-            start_server_thread.start()
-            self.ui.pushButton_sync.setText("Running Server")
-            self.ui.label_status.setText("Server is ready to accept client connection...")
+            self.ui.label_status.setText("Server started...")
+            self.ui.pushButton_sync.setText("Server Running")
+            self.server_thread.start()
             self.ui.pushButton_sync.setEnabled(False)
 
         elif self.sync_role == "client":
             self.ui.pushButton_sync.setEnabled(False)
             self.ui.label_status.setText("Client is attempting to reach server with IP address = " + self.sync_ip)
-            connect_status = self.sync_obj.connect_with_server()
-            if connect_status:
-                self.ui.pushButton_sync.setText("Running Client")
-                self.ui.label_status.setText("Client is connected to the server with IP address = " + self.sync_ip)
-            else:
-                self.ui.label_status.setText("Client could not connect with to the server with IP address = " + self.sync_ip + "; Check IP address and verify that server is running.")
-                self.ui.pushButton_sync.setEnabled(True)
+            self.client_thread.start()
+
+
+    def client_connect_status(self, connect_status):
+        if connect_status:
+            self.ui.pushButton_sync.setText("Running Client")
+            self.ui.label_status.setText("Client is connected to the server with IP address = " + self.sync_ip)
+        else:
+            self.ui.label_status.setText("Client could not connect with to the server with IP address = " + self.sync_ip + "; Check IP address and verify that server is running.")
+            self.ui.pushButton_sync.setEnabled(True)
+
+
+    def update_sync_flag(self, sync_flag):
+        self.server_sync_available = True
+        self.ui.data_record_flag = sync_flag
 
 
     def load_exp_params(self):
@@ -210,6 +242,7 @@ class PPG(QWidget):
                 self.ui.params_dict = json.load(json_file)
         except:
             self.ui.label_status.setText("Error opening the JSON file")
+            return
 
         # try:
         if self.ui.params_dict != None:
@@ -410,14 +443,22 @@ class PPG(QWidget):
         sync_signal = False
         if self.ext_sync_flag:
             if self.sync_role == "server":
-                self.sync_obj.send_sync_to_client()
+                self.server_thread.send_sync_to_client()
                 sync_signal = True
             else:
-                sync_signal = self.sync_obj.wait_for_server_sync()
-                if not sync_signal:
-                    self.ui.label_status.setText('Server not running... Please retry...')
-                    self.ui.pushButton_record_data.setText("Record Data")
-                    self.ui.pushButton_record_data.setEnabled(True)
+                self.client_thread.wait_for_sync = True
+                while True:
+                    if self.server_sync_available:
+                        if self.ui.data_record_flag:
+                            sync_signal = True
+                            self.server_sync_available = False
+                            break
+                        else:
+                            self.ui.label_status.setText('Server not running... Please retry...')
+                            self.ui.pushButton_record_data.setText("Record Data")
+                            # self.ui.pushButton_record_data.setEnabled(True)
+                            self.ui.pushButton_sync.setEnabled(True)
+
         else:
             sync_signal = True
 
@@ -670,24 +711,12 @@ class LivePlotFigCanvas(FigureCanvas, TimedAnimation):
 
 
 def main(app, args_parser):
-    global hold_acquisition_thread, temp_filename, csvfile_handle, live_acquisition_flag
-
     if osname == 'Darwin':
         app.setStyle('Fusion')
     
     widget = PPG(args_parser)
     widget.show()
     ret = app.exec()
-
-    live_acquisition_flag = False
-    del widget
-    hold_acquisition_thread = False
-
-    if os.path.exists(temp_filename):
-        if not csvfile_handle.closed:
-            csvfile_handle.close()
-        time.sleep(0.2)
-        os.remove(temp_filename)
 
     # sys.exit(ret)
     return
@@ -702,4 +731,5 @@ if __name__ == '__main__':
 
     # Create the application instance.
     app = QApplication([])
+
     main(app, args_parser)
