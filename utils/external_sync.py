@@ -107,13 +107,14 @@ class ClientThread(QThread):
                         elif not data:
                             self.sync_update.emit(False)
                             self.connect_update.emit(False)
+                            time.sleep(1)
                     else:
                         time.sleep(1)
         
             except:
                 self.connect_update.emit(False)
                 # print("Connection could not be established... Retrying...")
-                time.sleep(3)
+                time.sleep(5)
             
 
 
