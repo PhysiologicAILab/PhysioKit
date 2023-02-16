@@ -1,3 +1,6 @@
+import os
+os.environ["PYSIDE_DESIGNER_PLUGINS"] = '.'
+
 # This Python file uses the following encoding: utf-8
 from utils.external_sync import ServerThread, ClientThread
 import threading
@@ -14,7 +17,7 @@ from PySide6.QtWidgets import QApplication, QWidget, QGraphicsScene, QFileDialog
 from PySide6.QtCore import QFile, QObject, Signal
 from PySide6.QtUiTools import QUiLoader
 
-import os
+
 global osname
 osname = ''
 try:
@@ -29,7 +32,6 @@ from matplotlib.figure import Figure
 from utils.data_processing_lib import lFilter, lFilter_moving_average
 from utils.devices import serialPort
 import argparse
-
 
 
 global live_acquisition_flag, hold_acquisition_thread, nChannels, temp_filename, marker_event_status, sampling_rate, csvfile_handle
@@ -47,6 +49,11 @@ class Communicate(QObject):
     time_signal = Signal(int)
     log_signal = Signal(str)
     stop_signal = Signal(bool)
+
+
+class Server_Sync(QObject):
+    record_signal = Signal(bool)
+
 
 
 class PPG(QWidget):
@@ -114,7 +121,7 @@ class PPG(QWidget):
                     self.ui.pushButton_sync.setText("Connect with Server")
                     self.client_thread = ClientThread(self.sync_ip, self.sync_port, parent=self)
                     self.client_thread.connect_update.connect(self.client_connect_status)
-                    self.client_thread.sync_update.connect(self.update_sync_flag)
+                    self.client_thread.sync_update.connect(self.start_recording)
                     self.server_sync_available = False
 
                 else:
@@ -430,10 +437,10 @@ class PPG(QWidget):
 
 
     def start_record_process(self):
+        sync_comm = Server_Sync()
+        sync_comm.record_signal.connect(self.start_recording)
 
-        global temp_filename, marker_event_status, csvfile_handle
-        self.ui.pushButton_record_data.setText("Waiting")
-        self.ui.pushButton_record_data.setEnabled(False)
+        global temp_filename, csvfile_handle
 
         if not os.path.exists(temp_filename):
             csvfile_handle = open(temp_filename, 'w', encoding="utf", newline="")
@@ -445,24 +452,17 @@ class PPG(QWidget):
             if self.sync_role == "server":
                 self.server_thread.send_sync_to_client()
                 sync_signal = True
+                sync_comm.record_signal.emit(sync_signal)
             else:
                 self.client_thread.wait_for_sync = True
-                while True:
-                    if self.server_sync_available:
-                        if self.ui.data_record_flag:
-                            sync_signal = True
-                            self.server_sync_available = False
-                            break
-                        else:
-                            self.ui.label_status.setText('Server not running... Please retry...')
-                            self.ui.pushButton_record_data.setText("Record Data")
-                            # self.ui.pushButton_record_data.setEnabled(True)
-                            self.ui.pushButton_sync.setEnabled(True)
-
         else:
             sync_signal = True
+            sync_comm.record_signal.emit(sync_signal)
 
-        if sync_signal:
+
+    def start_recording(self, start_signal):
+        global marker_event_status
+        if start_signal:
             self.ui.record_start_time = datetime.now()
             self.ui.data_record_flag = True
 
@@ -486,9 +486,17 @@ class PPG(QWidget):
             except:
                 self.ui.label_status.setText("Incorrect entry for evencode, using eventcode = 0")
                 self.ui.eventcode = 0
-    
+
+        else:
+            self.ui.label_status.setText('Server not running... Please retry...')
+            self.ui.pushButton_record_data.setText("Record Data")
+            # self.ui.pushButton_record_data.setEnabled(True)
+            self.ui.pushButton_sync.setEnabled(True)
 
     def record_data(self):
+        self.ui.pushButton_record_data.setText("Waiting")
+        self.ui.pushButton_record_data.setEnabled(False)
+
         if not self.ui.data_record_flag:
             start_record_thread = threading.Thread(name='start_record', target=self.start_record_process, daemon=True)
             start_record_thread.start()
@@ -497,6 +505,7 @@ class PPG(QWidget):
             self.ui.data_record_flag = False
             stop_record_thread = threading.Thread(name='stop_record', target=self.stop_record_process, daemon=True)
             stop_record_thread.start()
+
 
     def stop_record_from_thread(self, stop_signal):
         if stop_signal:
@@ -559,8 +568,6 @@ class PPG(QWidget):
                             if (elapsed_time >= self.ui.curr_acquisition_time_ms):
                                 self.ui.data_record_flag = False
                                 mySrc.stop_signal.emit(True)
-                                # stop_record_thread = threading.Thread(name='stop_record', target=self.stop_record_process, daemon=True)
-                                # stop_record_thread.start()
                                 prev_elapsed_time = 0
                                 curr_elapsed_time = 0
                                 

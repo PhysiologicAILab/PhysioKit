@@ -7,7 +7,7 @@ class serialPort():
         self.timeout = None  # specify timeout when using readline()
         self.ports = lp.comports()
 
-    def connectPort(self, port_name, baudrate=38400):
+    def connectPort(self, port_name, baudrate=115200):
         self.ser.port = port_name  # "/dev/cu.usbmodem14101" # 'COM3'  # Arduino serial port
         self.ser.baudrate = baudrate
         self.ser.timeout = self.timeout  # specify timeout when using readline()
@@ -22,8 +22,10 @@ class serialPort():
 
         # self.ser.reset_input_buffer()
         # self.ser.write(str.encode('1\r\n', 'UTF-8'))
-        
 
     def disconnectPort(self):
         self.ser.close()
         return
+
+
+
