@@ -563,8 +563,8 @@ class PPG(QWidget):
                     value.append(serial_val)
 
                     if self.ui.data_record_flag:
+                        elapsed_time = (datetime.now() - self.ui.record_start_time).total_seconds()*1000
                         if self.ui.timed_acquisition:
-                            elapsed_time = (datetime.now() - self.ui.record_start_time).total_seconds()*1000
                             if (elapsed_time >= self.ui.curr_acquisition_time_ms):
                                 self.ui.data_record_flag = False
                                 mySrc.stop_signal.emit(True)
