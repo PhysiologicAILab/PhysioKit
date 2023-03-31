@@ -4,7 +4,6 @@ int RespPin = 1;
 int PulseSensor1Pin = 2;        // Pulse Sensor PURPLE WIRE connected to ANALOG PIN 2
 int PulseSensor2Pin = 3;        // Pulse Sensor PURPLE WIRE connected to ANALOG PIN 3
 int sampling_rate = 250;
-int inter_sample_interval_us = int(round(float(1000000/sampling_rate)));
 
 unsigned long startMicros = 0;  //some global variables available anywhere in the program
 int processTimeMicros = 0;
@@ -13,7 +12,7 @@ unsigned int edaVal = 0;
 unsigned int respVal = 0;
 unsigned int ppg1Val = 0;
 unsigned int ppg2Val = 0;                // holds the incoming raw data. Signal value can range from 0-1024
-
+int inter_sample_interval_us = int(round(float(1000000/sampling_rate)));
   
 // The SetUp Function:
 void setup() {

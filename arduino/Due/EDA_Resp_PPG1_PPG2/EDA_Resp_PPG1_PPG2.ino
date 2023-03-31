@@ -25,7 +25,6 @@ void setup() {
 
 // The Main Loop Function
 void loop() {
-    
     startMicros = micros();  //initial start time
     SerialUSB.flush();
     
