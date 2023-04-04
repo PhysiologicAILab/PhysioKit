@@ -521,7 +521,7 @@ class PPG(QWidget):
         stop_record_thread = threading.Thread(name='stop_record', target=self.stop_record_process, daemon=True)
         stop_record_thread.start()
 
-    def update_time_elapsed(self):
+    def update_time_elapsed(self, elapsed_time):
         if self.ui.timed_acquisition:
             self.ui.label_status.setText("Time remaining (seconds): " + str(self.ui.curr_acquisition_time - elapsed_time))
         else:
