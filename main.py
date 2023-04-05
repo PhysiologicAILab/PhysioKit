@@ -311,7 +311,7 @@ class PPG(QWidget):
                     disp_image = deepcopy(self.ui.bf_disp_image)
                     disp_image = cv2.circle(disp_image, self.ui.bf_center_coordinates,
                                             self.ui.biofeedback_thread.circle_radius_baseline, self.ui.bf_circle_color, self.ui.bf_circle_thickness)
-                    h, w, ch = disp_image
+                    h, w, ch = disp_image.shape
                     bytesPerLine = ch * w
                     qimg = QImage(self.ui.bf_disp_image.data, w, h, bytesPerLine, QImage.Format_RGB888)
                     self.preview_pixmap = QPixmap.fromImage(qimg)

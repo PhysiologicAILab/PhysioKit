@@ -16,7 +16,7 @@
     },
     "biofeedback":
     {
-        "enabled": true,
+        "enabled": false,
         "type": "visual",
         "visual_feedback":
         {
