@@ -1,6 +1,5 @@
 {
-    "exp":
-    {
+    "exp":{
         "study_name": "PhysioKit_Validation_Study",
         "conditions": ["baseline", "mathEasy", "mathDifficult", "movement"],
         "channels": ["EDA", "Resp", "PPG Finger", "PPG Ear"],
@@ -9,14 +8,13 @@
         "max_time_seconds": [180, 180, 180, 180],
         "datapath": "data"
     },
-    "biofeedback":
-    {
+    "biofeedback":{
         "enable": true,
         "type": "visual",
         "visual_feedback":
         {
-            "shape": "circle",
-            "varying_parameter": "size",
+            "shape": "rectangle",
+            "varying_parameter": "color",
             "metric": "pnn50",
             "window": 30,
             "mapping": "linear_increase"

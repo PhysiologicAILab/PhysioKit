@@ -4,6 +4,7 @@ int RespPin = 1;
 int PulseSensor1Pin = 2;        // Pulse Sensor PURPLE WIRE connected to ANALOG PIN 2
 int PulseSensor2Pin = 3;        // Pulse Sensor PURPLE WIRE connected to ANALOG PIN 3
 int sampling_rate = 250;
+long int baudrate = 2000000;
 
 unsigned long startMicros = 0;  //some global variables available anywhere in the program
 int processTimeMicros = 0;
@@ -16,7 +17,7 @@ int inter_sample_interval_us = int(round(float(1000000/sampling_rate)));
   
 // The SetUp Function:
 void setup() {
-   Serial.begin(115200);         // Set's up Serial Communication at certain speed.
+   Serial.begin(baudrate);         // Set's up Serial Communication at certain speed.
    pinMode(EDAPin, INPUT);
    pinMode(RespPin, INPUT);
    pinMode(PulseSensor1Pin, INPUT);
