@@ -3,6 +3,8 @@ os.environ["PYSIDE_DESIGNER_PLUGINS"] = '.'
 
 # This Python file uses the following encoding: utf-8
 from utils.external_sync import ServerThread, ClientThread
+from utils.biofeedback_vis import BioFeedback_Thread
+
 import threading
 import time
 import json
@@ -12,11 +14,13 @@ import csv
 from datetime import datetime
 
 import numpy as np
+import cv2
+from copy import deepcopy
 
 from PySide6.QtWidgets import QApplication, QWidget, QGraphicsScene, QFileDialog
-from PySide6.QtCore import QFile, QObject, Signal
+from PySide6.QtCore import QFile, QObject, Signal, Qt
 from PySide6.QtUiTools import QUiLoader
-
+from PySide6.QtGui import QPixmap, QImage
 
 global osname
 osname = ''
@@ -46,6 +50,7 @@ csvfile_handle = None
 class Communicate(QObject):
     data_signal = Signal(list)
     data_signal_filt = Signal(list)
+    bf_signal = Signal(float)
     time_signal = Signal(int)
     log_signal = Signal(str)
     stop_signal = Signal(bool)
@@ -161,7 +166,7 @@ class PPG(QWidget):
         self.ui.pushButton_record_data.pressed.connect(self.record_data)
         self.ui.utc_timestamp_featDict = datetime.utcnow()
 
-        self.ui.lineEdit_Event.textChanged.connect(self.update_event_code)
+        self.ui.comboBox_event.currentIndexChanged.connect(self.update_event_code)
         self.ui.pushButton_Event.pressed.connect(self.toggle_marking)
 
         self.ui.listWidget_expConditions.currentItemChanged.connect(self.update_exp_condition)
@@ -177,6 +182,8 @@ class PPG(QWidget):
         csvfile_handle = open(temp_filename, 'w', encoding="utf", newline="")
         self.writer = csv.writer(csvfile_handle)
 
+        self.ui.biofeedback_enable = False
+
         ui_file.close()
 
 
@@ -184,6 +191,10 @@ class PPG(QWidget):
         global hold_acquisition_thread, temp_filename, csvfile_handle, live_acquisition_flag
         live_acquisition_flag = False
         hold_acquisition_thread = False
+
+        if self.ui.biofeedback_enable:
+            if self.ui.biofeedback_thread.isRunning():
+                self.ui.biofeedback_thread.stop()
 
         if self.ext_sync_flag:
             if self.sync_role == "server":
@@ -261,6 +272,57 @@ class PPG(QWidget):
                 self.ui.curr_acquisition_time = self.ui.max_acquisition_time[0]
                 self.ui.curr_acquisition_time_ms = self.ui.max_acquisition_time[0] * 1000.0
 
+            self.ui.event_codes = []
+            self.ui.event_code_names = []
+            for key, val in self.ui.params_dict["exp"]["event_codes"].items():
+                self.ui.event_codes.append(key)
+                self.ui.event_code_names.append(val)
+            self.ui.comboBox_event.addItems(self.ui.event_codes)
+            self.ui.eventcode = self.ui.event_codes[0]
+
+            if "biofeedback" in self.ui.params_dict:
+                if bool(self.ui.params_dict["biofeedback"]["enabled"]):
+                    self.ui.biofeedback_enable = True
+                    self.ui.bf_win = self.ui.params_dict["biofeedback"]["visual_feedback"]["window"]
+                    self.ui.bf_step = self.ui.params_dict["biofeedback"]["visual_feedback"]["step"]
+                    self.ui.bf_opt = self.ui.params_dict["biofeedback"]["visual_feedback"]["varying_parameter"]
+                    self.ui.bf_ch_index = self.ui.params_dict["biofeedback"]["visual_feedback"]["ch_index"]
+                    self.ui.bf_metric = self.ui.params_dict["biofeedback"]["visual_feedback"]["metric"]
+                else:
+                    self.ui.biofeedback_enable = False
+                
+            if self.ui.biofeedback_enable:
+                self.ui.tabWidget.setCurrentIndex(1)
+                self.ui.biofeedback_thread = BioFeedback_Thread(
+                    sampling_rate, self.ui.bf_win, self.ui.bf_step, self.ui.bf_opt, self.ui.bf_metric, parent=self)
+                if self.ui.bf_opt == "size":
+                    self.ui.biofeedback_thread.update_bf_size.connect(self.update_bf_visualization_size)
+                else:
+                    self.ui.biofeedback_thread.update_bf_color.connect(self.update_bf_visualization_color)
+
+                if self.ui.bf_opt == "size":
+                    img_width = 1280
+                    img_height = 720
+                    self.ui.bf_center_coordinates = (img_width//2, img_height//2)
+                    self.ui.bf_disp_image = 255*np.ones((img_height, img_width, 3), np.uint8)
+                    self.ui.bf_circle_thickness = -1
+                    self.ui.bf_circle_color = (127, 127, 127)
+
+                    disp_image = deepcopy(self.ui.bf_disp_image)
+                    disp_image = cv2.circle(disp_image, self.ui.bf_center_coordinates,
+                                            self.ui.biofeedback_thread.circle_radius_baseline, self.ui.bf_circle_color, self.ui.bf_circle_thickness)
+                    h, w, ch = disp_image.shape
+                    bytesPerLine = ch * w
+                    qimg = QImage(self.ui.bf_disp_image.data, w, h, bytesPerLine, QImage.Format_RGB888)
+                    self.preview_pixmap = QPixmap.fromImage(qimg)
+                    self.ui.label_biofeedback.setPixmap(self.preview_pixmap)
+
+                else:
+                    self.ui.label_biofeedback.setStyleSheet("background-color:rgb(127,127,127); border-radius: 10px")
+
+                print("Biofeedback Enabled")
+
+
             self.ui.data_root_dir = self.ui.params_dict["exp"]["datapath"]
             if not os.path.exists(self.ui.data_root_dir):
                 os.makedirs(self.ui.data_root_dir)
@@ -336,7 +398,7 @@ class PPG(QWidget):
             self.ui.label_status.setText("Error saving data")
 
         self.ui.pushButton_record_data.setText("Start Recording")
-        self.ui.lineEdit_Event.setEnabled(False)
+        self.ui.comboBox_event.setEnabled(False)
         self.ui.pushButton_Event.setEnabled(False)
 
         if marker_event_status:
@@ -354,9 +416,9 @@ class PPG(QWidget):
         self.ui.pid = text
 
 
-    def update_event_code(self, text):
+    def update_event_code(self, indx):
         try:
-            self.ui.eventcode = int(text)
+            self.ui.eventcode = self.ui.event_codes[indx]
         except:
             self.ui.label_status.setText("Incorrect entry for evencode, using eventcode = 0")
             self.ui.eventcode = 0
@@ -407,6 +469,10 @@ class PPG(QWidget):
                 self.phys_data_acquisition_thread.start()
                 self.phys_data_acq_started_flag = True
                 self.ui.label_status.setText("Live acquisition started")
+
+                if self.ui.biofeedback_enable:
+                    self.ui.biofeedback_thread.start()
+
             else:
                 self.ui.label_status.setText("Live acquisition started.")
             self.ui.pushButton_start_live_acquisition.setText('Stop Live Acquisition')        
@@ -477,12 +543,12 @@ class PPG(QWidget):
             else:
                 self.ui.label_status.setText("Recording started for: Exp - " + self.ui.curr_exp_name + "; Condition - " + self.ui.curr_exp_condition)
 
-            self.ui.lineEdit_Event.setEnabled(True)
+            self.ui.comboBox_event.setEnabled(True)
             self.ui.pushButton_Event.setEnabled(True)
             marker_event_status = False
 
             try:
-                self.ui.eventcode = int(self.ui.lineEdit_Event.text())
+                self.ui.eventcode = self.ui.event_codes[self.ui.comboBox_event.currentIndex]
             except:
                 self.ui.label_status.setText("Incorrect entry for evencode, using eventcode = 0")
                 self.ui.eventcode = 0
@@ -522,6 +588,18 @@ class PPG(QWidget):
     def update_log(self, log_message):
         self.ui.label_status.setText(log_message)
 
+    def update_bf_visualization_size(self, radius):
+        disp_image = deepcopy(self.ui.bf_disp_image)
+        disp_image = cv2.circle(disp_image, self.ui.bf_center_coordinates, radius, self.ui.bf_circle_color, self.ui.bf_circle_thickness)
+        h, w, ch = disp_image.shape
+        bytesPerLine = ch * w
+        qimg = QImage(disp_image.data, w, h, bytesPerLine, QImage.Format_RGB888)
+        self.preview_pixmap = QPixmap.fromImage(qimg)
+        self.ui.label_biofeedback.setPixmap(self.preview_pixmap)
+
+    def update_bf_visualization_color(self, color):
+        self.ui.label_biofeedback.setStyleSheet(color)
+
 
     def phys_data_acquisition(self):
         global live_acquisition_flag, hold_acquisition_thread, nChannels
@@ -532,6 +610,8 @@ class PPG(QWidget):
         mySrc.time_signal.connect(self.update_time_elapsed)
         mySrc.log_signal.connect(self.update_log)
         mySrc.stop_signal.connect(self.stop_record_from_thread)
+        if self.ui.biofeedback_enable:
+            mySrc.bf_signal.connect(self.ui.biofeedback_thread.add_bf_ppg_data)
 
         value = []
         value_filt = []
@@ -590,6 +670,8 @@ class PPG(QWidget):
                         curr_elapsed_time = 0
 
                     mySrc.data_signal_filt.emit(value_filt)
+                    if self.ui.biofeedback_enable:
+                        mySrc.bf_signal.emit(value_filt[self.ui.bf_ch_index])
 
                 except:
                     try:
