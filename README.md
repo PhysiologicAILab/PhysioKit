@@ -8,7 +8,7 @@ Below figure shows architecture of PhysioKit:
 <img src="images/architecture.png" alt="Architecture of PhysioKit" width="1024"/>
 </p>
 
-The PhysioKit comprise hardware and software-application layers. Its hardware consists of physiological sensors and a low-cost micro-controller board e.g Arduino. PhysioKit supports a wide range of existing physiological sensor modules that output continuous signals, that are read using analog input channels of micro-controller board. Its software-application layer includes an interface to configure experimental and acquisition parameters, real-time streaming and visualization of multiple physiological signals, pre-processing and analysis of acquired signals. Data-transmission between micro-controller board and PC is supported using wired (USB) or Bluetooth communication. PhysioKit integrates existing libraries to analyze acquired physiological signals, including photoplethysmography (PPG), breathing signals and electrodermal activity (EDA). For enhanced accessibility, PhysioKit is designed to be compatible with bespoke sensor-mounts. PhysioKit is available for research and academic use.
+The proliferation of physiological sensors opens new opportunities to explore interactions, conduct experiments and evaluate the user experience with continuous monitoring of bodily functions. Commercial devices, however, can be costly or limit access to continuous data, while low-cost tools lack validity and user friendliness. To address the challenges, we introduce PhysioKit, an open-source, low-cost physiological computing toolkit. PhysioKit consists of (i) a sensor and hardware layer that can be configured in a modular manner along with research needs, (ii) a software application layer that enables real-time data collection, streaming and visualization for both single and multi-user experiments. This also supports basic visual biofeedback configurations and multi-signal synchronization for co-located or remote multi-user settings. In a validation study with 15 participants, PhysioKit shows strong agreement with research-grade reference sensors. Then, we report on usability survey results from 10 micro-project teams (44 individual members in total) who use PhysioKit for 4-6 weeks, providing insights into its research benefits, such as "access to raw data". We conclude by discussing its use cases and potential impact on the HCI community.
 
 ## **Installation**
 Unzip the package
@@ -22,7 +22,8 @@ run: pip install -r requirements.txt in your shell.
 
 ## **Launching the PhysioKit Interface**
 ``` bash
-python main.py
+python main.py --config <path of config file>
+e.g. python main.py --config configs/Uno/sw_config.json
 ```
 This shall open user interface, basic functioning of which is shown in this demo:
 <p align="left">
@@ -31,4 +32,3 @@ This shall open user interface, basic functioning of which is shown in this demo
 
 
 ## **Citing PhysioKit**
-Jitesh Joshi, Katherine Wang, and Youngjun Cho. 2023. PhysioKit: Open-source, Accessible Physiological Computing Toolkit. *In Review*
