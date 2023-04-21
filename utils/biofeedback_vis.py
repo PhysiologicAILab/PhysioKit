@@ -79,7 +79,7 @@ class BioFeedback_Thread(QThread):
                             self.ppg_metrics[self.bf_metric] - self.ppg_metrics["baseline"]) / self.ppg_metrics["baseline"]
                     else:
                         self.ppg_metrics["percent_change"] = 0
-                    print("percent_change", self.ppg_metrics["percent_change"])
+                    # print("percent_change", self.ppg_metrics["percent_change"])
 
                     if self.vis_opt == "size":    
                         self.circle_radius_bf = int(round(self.circle_radius_baseline + (self.ppg_metrics["percent_change"] * self.circle_radius_baseline)))
