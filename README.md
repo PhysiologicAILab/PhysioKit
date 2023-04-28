@@ -32,7 +32,9 @@ The Arduino program files for Arm based board (e.g. Due) are also provided at "*
 The default sampling rate is 250 samples per second for all boards. If you need to change this, please follow the comments written in the arduino code. Similarly, the default baudrate for AVR boards is set to 115200. To set a different baudrate, both the Arduino program and software configuration file (e.g. *configs/avr_default/sw_config.json*) are required to be changed appropriately.
 
 ### **Step-2: Choose or Update Software Configurartion File**
-If no changes have been made to Arduino program, then it is only required to identify the correct software configuration file. For single-user scenario and default AVR family boards, the config file to be selected is *configs/avr_default/sw_config.json*. For multi-user settings, depending on whether to configure the computer as TCP server or TCP client, *sw_config_server.json* or *sw_config_client.json* can be selected. 
+If no changes have been made to Arduino program, then it is only required to identify the correct software configuration file. For single-user scenario and default AVR family boards, the config file to be used is *configs/avr_default/sw_config.json*. In this config file, *external_sync* is specified with *enable* field set to *false*.
+
+For multi-user settings, *external_sync* is specified with *enable* field set to *true*. Depending on the *role* speficied for the computer, it can serve either as *server* or as *client* - for which one of the two config files - *sw_config_server.json* or *sw_config_client.json* can be used. 
 
 While no changes are required for *sw_config_server.json*, the *client* field in the *sw_config_client.json* file is required to specify the "*server_ip*" address. Please ensure that the "*server_ip*" address is reachable, and both the clients and the server are on the same enterprise network, or reachable using VPN.
 
@@ -79,19 +81,32 @@ This shall open user interface, basic functioning of which is shown in this demo
 
 A brief description of each step is mentioned below:
 
-> #### **Step-4a: Connect with the Serial Port**: Select the serial / com-port where Arduino board is connected. Observe the *Info* displayed at the bottom of the interface in the status bar. On successful connection, the *Info* bar shall display the port details along with the baudrate.
+> **Step-4a: Connect with the Serial Port**: Select the serial / com-port where Arduino board is connected. Observe the *Info* displayed at the bottom of the interface in the status bar. On successful connection, the *Info* bar shall display the port details along with the baudrate.
 
-> #### **Step-4b: Browse and select appropriate Experiment Configuration file**: Using the interface, browse the *Experiment Configuration File* as updated in **Step-3**. On successful loading of the config file, the interface shall start displaying he plotting area with the specified number of channels. Please note if the number of channels are more than 4, the interface will only show real-time plotting of first four physiological signals as specified in the configuration file.
+> **Step-4b: Browse and select appropriate Experiment Configuration file**: Using the interface, browse the *Experiment Configuration File* as updated in [Step-3](#step-3-update-experiment-configurartion-file). On successful loading of the config file, the interface shall start displaying he plotting area with the specified number of channels. Please note if the number of channels are more than 4, the interface will only show real-time plotting of first four physiological signals as specified in the configuration file.
 
-> #### **Step-4c: Specify Participant ID**: This allows specifying the participant ID in user preferred manner. The ID specified here will be used for storing the data in organized manner. 
+> **Step-4c: Specify Participant ID**: This allows specifying the participant ID in user preferred manner. The ID specified here will be used for storing the data in organized manner. 
 
-> #### **Step-4d: Select Experiment Condition**: This part of the interface shows a list of conditions as specified in the *Experiment Configuration File* in **Step-3**. Each condition listed can be selected with a mouse click. Experimental condition will also be used in naming the file while storing acquired physiological signals.
+> **Step-4d: Select Experiment Condition**: This part of the interface shows a list of conditions as specified in the *Experiment Configuration File* in [Step-3](#step-3-update-experiment-configurartion-file). Each condition listed can be selected with a mouse click. Experimental condition will also be used in naming the file while storing acquired physiological signals.
 
-> #### **Step-4e: Start Live Acquisition**: In this step, real-time plots can be seen in the plotting area of the interface. Signals are not yet being recorded and the objective at this step is to visually inspect the physiological signals and verify if good quality signals are being acquired. 
+> **Step-4e: Start Live Acquisition**: In this step, real-time plots can be seen in the plotting area of the interface. Signals are not yet being recorded and the objective at this step is to visually inspect the physiological signals and verify if good quality signals are being acquired. 
 
-> #### **Step-4f: Start Recording**: Having verified the signals with real-time plotting feature, recording can be started with a manual trigger. In case of multi-user settings, all the client computers are required to remain ready for recording the data before the recording starts at the server computer. Pressing *Record Data* on client computer makes it ready to wait for a trigger from the connected server. The recording of the data on all the computers can be started synchronously with a manual trigger at server computer.
+> **Step-4f: Start Recording**: Having verified the signals with real-time plotting feature, recording can be started with a manual trigger. In case of multi-user settings, all the client computers are required to remain ready for recording the data before the recording starts at the server computer. Pressing *Record Data* on client computer makes it ready to wait for a trigger from the connected server. The recording of the data on all the computers can be started synchronously with a manual trigger at server computer.
 
+> **Step-4g: Marking the Events**: While the recording of physiological signals is in progress, interface allows marking events by pressing *Start Marking* button. Before pressing this, one can choose the relevant *Event Code* from the list which will show the *Event Codes* as specified in [Step-3](#step-3-update-experiment-configurartion-file). The same button then can be pressed to stop marking of the event. These marking information will be stored along with the data samples in CSV file - with the corresponding *Event-Code*.
+
+> **Step-4h: Stopping to Record**: If the *timed_acquisition* field specified in the [Step-3](#step-3-update-experiment-configurartion-file) is set to *true*, the recording will stop after the specified time, and pressing *Stop Recording* will interrupt the planned acquisition. This can be used only in exception cases in which experiment is to be terminated abruptly. However, if the *timed_acquisition* field is set to *false*, then *Stop Recording* is required to be pressed manually to end the acquisition.
 
 ---
 
-### PhysioKit can be cited as:
+### **Data Analysis**
+Jupyter notebooks *phys_analysis_eda.ipynb*, *phys_analysis_ppg.ipynb*, and *phys_analysis_resp.ipynb* are provided to illustrate basic analysis steps. This includes pre-processing as well as feature extraction for EDA, PPG and Resp signals respectively. 
+
+---
+### **Additional Support or Reporting Issues with the Library**: 
+Please use Github's *Issues* to report any problem you face while using the PhysioKit. 
+
+---
+
+### **Citation**:
+To be updated soon.
