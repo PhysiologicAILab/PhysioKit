@@ -735,7 +735,6 @@ class FigCanvas(FigureCanvas):
 
 
 
-
 class LivePlotFigCanvas(TimedAnimation):
     def __init__(self, figCanvas: FigureCanvas, interval: int = 40) -> None:
         self.fig = figCanvas.fig
