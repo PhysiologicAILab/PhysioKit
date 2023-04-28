@@ -3,8 +3,8 @@
     {
         "study_name": "Study1",
         "conditions": ["baseline", "expCond1"],
-        "channels": ["PPG Finger", "PPG Ear"],
-        "channel_types": ["ppg", "ppg"],
+        "channels": ["Resp"],
+        "channel_types": ["resp"],
         "timed_acquisition": true,
         "max_time_seconds": [180, 180],
         "datapath": "data",

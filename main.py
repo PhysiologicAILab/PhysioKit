@@ -22,6 +22,9 @@ from PySide6.QtCore import QFile, QObject, Signal, Qt
 from PySide6.QtUiTools import QUiLoader
 from PySide6.QtGui import QPixmap, QImage
 
+import warnings
+warnings.filterwarnings("ignore")
+
 global osname
 osname = ''
 try:
@@ -38,13 +41,17 @@ from utils.devices import serialPort
 import argparse
 
 
-global live_acquisition_flag, hold_acquisition_thread, nChannels, temp_filename, marker_event_status, sampling_rate, csvfile_handle
+global live_acquisition_flag, hold_acquisition_thread, nChannels, \
+temp_filename, marker_event_status, sampling_rate, csvfile_handle, \
+anim_running
+
 live_acquisition_flag = False
 hold_acquisition_thread = True
 nChannels = 4                   #default
 marker_event_status = False
 sampling_rate = 250             #default
 csvfile_handle = None
+anim_running = False
 
 # Setup a signal slot mechanism, to send data to GUI in a thread-safe way.
 class Communicate(QObject):
@@ -171,7 +178,7 @@ class PPG(QWidget):
 
         self.ui.listWidget_expConditions.currentItemChanged.connect(self.update_exp_condition)
 
-        self.myFig = None
+        self.myAnim = None
 
         global temp_filename, csvfile_handle
         temp_utc_sec = str((datetime.now() - datetime(1970, 1, 1)).total_seconds())
@@ -188,9 +195,14 @@ class PPG(QWidget):
 
 
     def closeEvent(self, event):
-        global hold_acquisition_thread, temp_filename, csvfile_handle, live_acquisition_flag
+        global hold_acquisition_thread, temp_filename, csvfile_handle, \
+            live_acquisition_flag, anim_running
         live_acquisition_flag = False
         hold_acquisition_thread = False
+
+        if anim_running:
+            TimedAnimation._stop(self.myAnim)
+            anim_running = False
 
         if self.ui.biofeedback_enable:
             if self.ui.biofeedback_thread.isRunning():
@@ -339,7 +351,7 @@ class PPG(QWidget):
             nChannels = len(self.ui.channels)
             self.ui.channel_types = self.ui.params_dict["exp"]["channel_types"]
             self.ui.channel_plot_colors = self.ui.sw_config_dict["exp"]["channel_plot_colors"][:nChannels]
-            self.csv_header = self.ui.channels + ["arduino_ts", "event_code"]
+            self.csv_header = self.ui.channels + ["event_code"]
             self.writer.writerow(self.csv_header)
 
             self.filt_objs = {}
@@ -354,9 +366,10 @@ class PPG(QWidget):
                     self.filt_objs[str(nCh)] = lFilter(self.ppg_lowcut, self.ppg_highcut, sampling_rate, order=self.filt_order)
 
             # # Place the matplotlib figure
-            self.myFig = LivePlotFigCanvas(channels = self.ui.channels, ch_colors = self.ui.channel_plot_colors)
+            self.figCanvas = FigCanvas(channels = self.ui.channels, ch_colors = self.ui.channel_plot_colors)
+            self.myAnim = LivePlotFigCanvas(figCanvas=self.figCanvas)
             self.graphic_scene = QGraphicsScene()
-            self.graphic_scene.addWidget(self.myFig)
+            self.graphic_scene.addWidget(self.figCanvas)
             self.ui.graphicsView.setScene(self.graphic_scene)
             self.ui.graphicsView.show()
 
@@ -403,7 +416,7 @@ class PPG(QWidget):
 
         if marker_event_status:
             marker_event_status = False
-            self.myFig.event_toggle = True
+            self.myAnim.event_toggle = True
 
         # prepare for next recording
         csvfile_handle = open(temp_filename, 'w', encoding="utf", newline="")
@@ -425,7 +438,7 @@ class PPG(QWidget):
 
     def toggle_marking(self):
         global marker_event_status
-        self.myFig.event_toggle = True
+        self.myAnim.event_toggle = True
         if not marker_event_status:
             marker_event_status = True
             self.ui.write_eventcode = self.ui.eventcode
@@ -485,7 +498,7 @@ class PPG(QWidget):
             self.ui.label_status.setText("Live acquisition stopped.")
             # To reset the graph and clear the values
             
-            self.myFig.reset_draw()
+            self.myAnim.reset_draw()
             if os.path.exists(temp_filename):
                 if not csvfile_handle.closed:
                     csvfile_handle.close()
@@ -606,7 +619,7 @@ class PPG(QWidget):
         # Setup the signal-slot mechanism.
         mySrc = Communicate()
         mySrc.data_signal.connect(self.csvWrite_function)
-        mySrc.data_signal_filt.connect(self.myFig.addData)
+        mySrc.data_signal_filt.connect(self.myAnim.addData)
         mySrc.time_signal.connect(self.update_time_elapsed)
         mySrc.log_signal.connect(self.update_log)
         mySrc.stop_signal.connect(self.stop_record_from_thread)
@@ -615,7 +628,7 @@ class PPG(QWidget):
 
         value = []
         value_filt = []
-        buffersize = (nChannels + 1)*4*bytes.__sizeof__(bytes()) + 2*bytes.__sizeof__(bytes())    #4 sensor unsigned int and 1 tsVal unsigned long => 5 * 4 bytes + 2 bytes for \r\n
+        buffersize = (nChannels)*4*bytes.__sizeof__(bytes()) + 2*bytes.__sizeof__(bytes())    #4 sensor unsigned int and 1 tsVal unsigned long => 5 * 4 bytes + 2 bytes for \r\n
         prev_elapsed_time = 0
         curr_elapsed_time = 0
 
@@ -639,8 +652,8 @@ class PPG(QWidget):
                         value.append(serial_val)
                         value_filt.append(self.filt_objs[str(nCh)].lfilt(serial_val))
 
-                    serial_val = int(serial_data[nChannels])
-                    value.append(serial_val)
+                    # serial_val = int(serial_data[nChannels])
+                    # value.append(serial_val)
 
                     if self.ui.data_record_flag:
                         elapsed_time = (datetime.now() - self.ui.record_start_time).total_seconds()*1000
@@ -675,7 +688,7 @@ class PPG(QWidget):
 
                 except:
                     try:
-                        assert len(serial_data) == (nChannels + 1)  #data channels + time_stamp
+                        assert len(serial_data) == (nChannels)  #data channels + time_stamp
                         print('error in reading data', serial_data)
                     except:
                         print('Mismatch in the number of channels specified in JSON file and the serial data received from Arduino or microcontroller')
@@ -688,28 +701,19 @@ class PPG(QWidget):
                 else:
                     time.sleep(1)
 
-
-
-class LivePlotFigCanvas(FigureCanvas, TimedAnimation):
-    def __init__(self, channels, ch_colors):
-        self.exception_count = 0
+class FigCanvas(FigureCanvas):
+    def __init__(self, channels, ch_colors, parent=None, width=13.8, height=7.5, dpi=100):
         global nChannels, sampling_rate
-
+        
+        self.max_plot_time = 10 # 30 second time window
         self.max_plot_channels = 4
         self.nChannels = min(nChannels, self.max_plot_channels)  #maximum number of channels for plaotting = 4
-        self.max_plot_time = 10 # 30 second time window
-        self.count_frame = 0
-        self.event_toggle = False
-        self.measure_time = 1  # moving max_plot_time sample by 1 sec.
-        self.max_frames_for_relimiting_axis = self.measure_time * sampling_rate
-                
         self.x_axis = np.linspace(0, self.max_plot_time, self.max_plot_time*sampling_rate)
 
         self.plot_signals = []
         self.axs = {}
         self.lines = {}
-
-        self.fig = Figure(figsize=(13.8, 7.5), layout="tight")
+        self.fig = Figure(figsize=(width, height), dpi=dpi, tight_layout=True)
 
         for nCh in range(self.nChannels):
             self.plot_signals.append(1000 * np.ones(self.max_plot_time * sampling_rate))
@@ -727,14 +731,36 @@ class LivePlotFigCanvas(FigureCanvas, TimedAnimation):
             self.axs[str(nCh)].yaxis.set_ticks_position('left')
             self.axs[str(nCh)].xaxis.set_ticks_position('bottom')
 
-        FigureCanvas.__init__(self, self.fig)
-        # TimedAnimation.__init__(self, self.fig, interval=int(round(10*1000.0/sampling_rate)), blit = True)  # figure update frequency: 1/10th of sampling rate
-        TimedAnimation.__init__(self, self.fig, interval=50, blit = True)  # figure update frequency: 30 FPS
-        return
+        super(FigCanvas, self).__init__(self.fig)
+
+
+
+
+class LivePlotFigCanvas(TimedAnimation):
+    def __init__(self, figCanvas: FigureCanvas, interval: int = 40) -> None:
+        self.fig = figCanvas.fig
+        global nChannels, sampling_rate, anim_running
+        self.sampling_rate = sampling_rate
+
+        self.max_plot_channels = 4
+        self.nChannels = min(nChannels, self.max_plot_channels)  #maximum number of channels for plaotting = 4
+
+        self.max_plot_time = 10 # 30 second time window
+        self.event_toggle = False
+        self.measure_time = 1  # moving max_plot_time sample by 1 sec.
+        self.max_frames_for_relimiting_axis = self.measure_time * sampling_rate
+
+        self.count_frame = 0
+        self.plot_signals = figCanvas.plot_signals
+        self.axs = figCanvas.axs
+        self.lines = figCanvas.lines
+        anim_running = True
+
+        super(LivePlotFigCanvas, self).__init__(self.fig, interval, blit=True)
 
 
     def new_frame_seq(self):
-        return iter(range(int(self.max_plot_time * sampling_rate)))
+        return iter(range(int(self.max_plot_time * self.sampling_rate)))
 
 
     def _init_draw(self):
@@ -747,13 +773,11 @@ class LivePlotFigCanvas(FigureCanvas, TimedAnimation):
 
     def reset_draw(self):
         self.count_frame = 0 # self.max_plot_time * sampling_rate
-
         return
 
 
     def addData(self, value):
         self.count_frame += 1
-
         for nCh in range(self.nChannels):
             self.plot_signals[nCh] = np.roll(self.plot_signals[nCh], -1)
             self.plot_signals[nCh][-1] = value[nCh]

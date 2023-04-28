@@ -1,7 +1,9 @@
-matplotlib>=3.6.3
-neurokit2>=0.2.2
-numpy>=1.23.4
-opencv_python>=4.6.0.66
-pyserial>=3.5
-PySide6>=6.5.0
-scipy>=1.9.1
+neurokit2
+numpy
+opencv_contrib_python
+pyserial
+PySide6
+PySide6_Addons
+PySide6_Essentials
+scipy
+matplotlib
