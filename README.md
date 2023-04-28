@@ -92,5 +92,6 @@ A brief description of each step is mentioned below:
 > #### **Step-4f: Start Recording**: Having verified the signals with real-time plotting feature, recording can be started with a manual trigger. In case of multi-user settings, all the client computers are required to remain ready for recording the data before the recording starts at the server computer. Pressing *Record Data* on client computer makes it ready to wait for a trigger from the connected server. The recording of the data on all the computers can be started synchronously with a manual trigger at server computer.
 
 
+---
 
-## **Citing PhysioKit**: PhysioKit can be cited as following:
+### PhysioKit can be cited as:
