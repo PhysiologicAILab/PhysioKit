@@ -31,14 +31,14 @@ The Arduino program files for Arm based board (e.g. Due) are also provided at "*
 
 The default sampling rate is 250 samples per second for all boards. If you need to change this, please follow the comments written in the arduino code. Similarly, the default baudrate for AVR boards is set to 115200. To set a different baudrate, both the Arduino program and software configuration file (e.g. *configs/avr_default/sw_config.json*) are required to be changed appropriately.
 
-### **Step-2: Choose or Update Software Configurartion File**
+### **Step-2: Choose or Update Software Configuration File**
 If no changes have been made to Arduino program, then it is only required to identify the correct software configuration file. For single-user scenario and default AVR family boards, the config file to be used is *configs/avr_default/sw_config.json*. In this config file, *external_sync* is specified with *enable* field set to *false*.
 
 For multi-user settings, *external_sync* is specified with *enable* field set to *true*. Depending on the *role* speficied for the computer, it can serve either as *server* or as *client* - for which one of the two config files - *sw_config_server.json* or *sw_config_client.json* can be used. 
 
 While no changes are required for *sw_config_server.json*, the *client* field in the *sw_config_client.json* file is required to specify the "*server_ip*" address. Please ensure that the "*server_ip*" address is reachable, and both the clients and the server are on the same enterprise network, or reachable using VPN.
 
-### **Step-3: Update Experiment Configurartion File**
+### **Step-3: Update Experiment Configuration File**
 Experiment configuration file needs to be updated as per the study protocol. This is described below with an illustration of the experiment configuration file used for the validation study of PhysioKit.
 
 Study name and conditions field once specified, are used by the interface to store the acquired data. There are no restrictions on the number of experimental conditions that can be added here. 
