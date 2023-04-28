@@ -22,29 +22,75 @@ pip install -r requirements.txt
 
 ## **Usage Instructions**
 ### **Step-1: Upload program on the Arduino board**
-Connect the Arduino board that you want to use. At this stage the sensors need not be connected.
-Navigate to "arduino/Uno" folder and as per the number of sensors that you want to use, go to the respective folder and open  the ".ino" file using Arduino IDE
-For example, if you want to use all three supported sensors, you may choose "EDA_Resp_PPG" folder and open "EDA_Resp_PPG.ino"
-Upload the Arduino program using IDE. If you are unfamiliar with this step, you may have a look at [this](https://support.arduino.cc/hc/en-us/articles/4733418441116-Upload-a-sketch-in-Arduino-IDE) tutorial for detailed instructions on how to upload program on Arduino board.
+Connect the Arduino board that you want to use. For this step, the sensors need not be connected.
+Navigate to "*arduino/default*" folder (for AVR family boards which are most common, e.g. Nano, Uno, Mega) and as per the number of sensors that you want to use, go to the respective folder and open  the ".ino" file using Arduino IDE. 
+For example, if you want to use all three supported sensors, you may choose "*three_sensors*" folder and open "*three_sensors.ino*". "*four_sensors.ino*" can be used in a setting where two pulse sensors (at different sensor sites, e.g. finger, ear) are to be used.
 
-### **Step-2: Updating Software Configurartion File**
+Having identified the correct Arduino program, upload the same to the Arduino board using Arduino IDE. If you are unfamiliar with this step, you may have a look at [this](https://support.arduino.cc/hc/en-us/articles/4733418441116-Upload-a-sketch-in-Arduino-IDE) tutorial for detailed instructions on how to upload program on Arduino board.
+The Arduino program files for Arm based board (e.g. Due) are also provided at "*arduino/due*" folder, which can be similarly used.
 
+The default sampling rate is 250 samples per second for all boards. If you need to change this, please follow the comments written in the arduino code. Similarly, the default baudrate for AVR boards is set to 115200. To set a different baudrate, both the Arduino program and software configuration file (e.g. *configs/avr_default/sw_config.json*) are required to be changed appropriately.
 
-### **Step-3: Updating Experiment Configurartion File**
+### **Step-2: Choose or Update Software Configurartion File**
+If no changes have been made to Arduino program, then it is only required to identify the correct software configuration file. For single-user scenario and default AVR family boards, the config file to be selected is *configs/avr_default/sw_config.json*. For multi-user settings, depending on whether to configure the computer as TCP server or TCP client, *sw_config_server.json* or *sw_config_client.json* can be selected. 
 
+While no changes are required for *sw_config_server.json*, the *client* field in the *sw_config_client.json* file is required to specify the "*server_ip*" address. Please ensure that the "*server_ip*" address is reachable, and both the clients and the server are on the same enterprise network, or reachable using VPN.
 
-### **Step-4: Launching the PhysioKit Interface**
-Run the following command 
+### **Step-3: Update Experiment Configurartion File**
+Experiment configuration file needs to be updated as per the study protocol. This is described below with an illustration of the experiment configuration file used for the validation study of PhysioKit.
+
+Study name and conditions field once specified, are used by the interface to store the acquired data. There are no restrictions on the number of experimental conditions that can be added here. 
+
+*channels* are the user-facing names of the sensors that are used in the study. For the interface to plot signals with physiological signal specific filtering, it is required to correctly specify the *channel_types*. The order of *channels*, *channel_types* and the connection of physiological sensors on the analog channels of Arduino board shall match precisely. 
+
+If the study protocol requires acquisition for indefinitely long duration with manual stop, then *timed_acquisition* can be specified as *False*, otherwise in every other scenario, this is to be set as *true*. If this is specified as *true*, it is required to specify the acquisition duration (in seconds) separately for each experimental condition. 
+
+Using the *datapath* field, we can specify the path at which the acquired data with get stored.
+
+Lastly, as the interface supports marking of asynchronous events, the description about the type of events along with *event_code* can be specified.
+
+        "study_name": "PhysioKit_Validation",
+        "conditions": ["baseline", "mathEasy", "mathDifficult", "movement"],
+        "channels": ["EDA", "Resp", "PPG Finger", "PPG Ear"],
+        "channel_types": ["eda", "resp", "ppg", "ppg"],
+        "timed_acquisition": true,
+        "max_time_seconds": [180, 180, 180, 180],
+        "datapath": "data",
+        "event_codes":{
+            "0": "event_1",
+            "1": "event_2"
+        }
+
+### **Step-4: Launch the PhysioKit Interface**
+Before launching the interface, ensure that the Arduino board is connected to the computer using USB connection or through Bluetooth connection. At this step, sensors are required to be appropriately connected to the analog channels of Arduino board.
+
+To launch the interface, run the following command in the terminal:
 ``` bash
 python main.py --config <path of config file>
 see example below 
-python main.py --config configs/Uno/sw_config.json
+python main.py --config configs/avr_default/sw_config.json
 ```
 
-This shall open user interface, basic functioning of which is shown in this demo:
+This shall open user interface, basic functioning of which is shown in this demo. Please note that the interface currently supports only 1920x1080 screen resolution with 100% scaling. Parts of the interface may not be visible if resolution is lower. For higher resolution, entire interface shall remain visible, though it will not expand to utilize the full resolution.
+
 <p align="left">
     <img src="images/PhysioKitDemo.gif" alt="Demo of PhysioKit" width="1024"/>
 </p>
 
+A brief description of each step is mentioned below:
 
-### **Citing PhysioKit**
+> #### **Step-4a: Connect with the Serial Port**: Select the serial / com-port where Arduino board is connected. Observe the *Info* displayed at the bottom of the interface in the status bar. On successful connection, the *Info* bar shall display the port details along with the baudrate.
+
+> #### **Step-4b: Browse and select appropriate Experiment Configuration file**: Using the interface, browse the *Experiment Configuration File* as updated in **Step-3**. On successful loading of the config file, the interface shall start displaying he plotting area with the specified number of channels. Please note if the number of channels are more than 4, the interface will only show real-time plotting of first four physiological signals as specified in the configuration file.
+
+> #### **Step-4c: Specify Participant ID**: This allows specifying the participant ID in user preferred manner. The ID specified here will be used for storing the data in organized manner. 
+
+> #### **Step-4d: Select Experiment Condition**: This part of the interface shows a list of conditions as specified in the *Experiment Configuration File* in **Step-3**. Each condition listed can be selected with a mouse click. Experimental condition will also be used in naming the file while storing acquired physiological signals.
+
+> #### **Step-4e: Start Live Acquisition**: In this step, real-time plots can be seen in the plotting area of the interface. Signals are not yet being recorded and the objective at this step is to visually inspect the physiological signals and verify if good quality signals are being acquired. 
+
+> #### **Step-4f: Start Recording**: Having verified the signals with real-time plotting feature, recording can be started with a manual trigger. In case of multi-user settings, all the client computers are required to remain ready for recording the data before the recording starts at the server computer. Pressing *Record Data* on client computer makes it ready to wait for a trigger from the connected server. The recording of the data on all the computers can be started synchronously with a manual trigger at server computer.
+
+
+
+## **Citing PhysioKit**: PhysioKit can be cited as following:
