@@ -328,6 +328,7 @@ class PPG(QWidget):
                     qimg = QImage(self.ui.bf_disp_image.data, w, h, bytesPerLine, QImage.Format_RGB888)
                     self.preview_pixmap = QPixmap.fromImage(qimg)
                     self.ui.label_biofeedback.setPixmap(self.preview_pixmap)
+                    self.ui.label_palette.hide()
 
                 else:
                     self.ui.label_biofeedback.setStyleSheet("background-color:rgb(127,127,127); border-radius: 10px")

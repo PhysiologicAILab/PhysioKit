@@ -26,12 +26,12 @@ class BioFeedback_Thread(QThread):
         self.set_baseline = True
         self.ppg_metrics = {}
         self.ppg_metrics[self.bf_metric] = 0
-        self.ppg_metrics["baseline"] = 0
-        self.ppg_metrics["percent_change"] = 0
+        self.ppg_metrics["baseline"] = np.array([0, 0, 0, 0, 0, 0, 0, 0, 0, 0], dtype=np.float32)
+        self.ppg_metrics["percent_change"] = np.array([1, 1, 1], dtype=np.float32)
         self.new_val = None
 
-        self.circle_radius_baseline = 300
-        self.circle_radius_bf = self.circle_radius_baseline
+        self.circle_radius_baseline = 150
+        self.circle_radius_bf = 150
 
         self.red_val = 127
         self.green_val = 127
@@ -65,28 +65,32 @@ class BioFeedback_Thread(QThread):
             if self.process_flag:
                 self.process_flag = False
                 try:
-                    if self.set_baseline:
-                        if self.ppg_metrics[self.bf_metric] != 0:
-                            self.ppg_metrics["baseline"] = self.ppg_metrics[self.bf_metric]
-                            # self.set_baseline = False
-
                     self.ppg_proc_signals, self.ppg_info = nk.ppg_process(self.ppg_signal, sampling_rate=self.fs)
                     hrv_indices = nk.hrv_time(self.ppg_info['PPG_Peaks'])
                     self.ppg_metrics[self.bf_metric] = hrv_indices[self.bf_metric][0]
-                    
-                    if self.ppg_metrics["baseline"] != 0:
-                        self.ppg_metrics["percent_change"] = (
-                            self.ppg_metrics[self.bf_metric] - self.ppg_metrics["baseline"]) / self.ppg_metrics["baseline"]
-                    else:
-                        self.ppg_metrics["percent_change"] = 0
-                    # print("percent_change", self.ppg_metrics["percent_change"])
+                    print("metrics:", hrv_indices[self.bf_metric][0])
+                    if self.set_baseline:
+                        if self.ppg_metrics[self.bf_metric] != 0:
+                            self.ppg_metrics["baseline"] = np.roll(self.ppg_metrics["baseline"], -1)
+                            self.ppg_metrics["baseline"][-1] = self.ppg_metrics[self.bf_metric]
+                            print("Baseline metrics:", self.ppg_metrics["baseline"])
+                            self.set_baseline = True
+
+                    if np.max(self.ppg_metrics["baseline"]) != 0:
+                        baseline =  [d for d in self.ppg_metrics["baseline"] if d != 0]
+                        baseline = np.mean(baseline)
+                        self.ppg_metrics["percent_change"] = np.roll(self.ppg_metrics["percent_change"], -1)
+                        self.ppg_metrics["percent_change"][-1] = 1 + 5.0*(float(self.ppg_metrics[self.bf_metric] - baseline) / baseline)
+                    # else:
+                    #     self.ppg_metrics["percent_change"] = 0
+                    print("percent_change", self.ppg_metrics["percent_change"])
 
                     if self.vis_opt == "size":    
-                        self.circle_radius_bf = int(round(self.circle_radius_baseline + (self.ppg_metrics["percent_change"] * self.circle_radius_baseline)))
+                        self.circle_radius_bf = int(round((np.mean(self.ppg_metrics["percent_change"]) * self.circle_radius_baseline)))
                         if self.circle_radius_bf < 100:
                             self.circle_radius_bf = 100
-                        elif self.circle_radius_bf > 500:
-                            self.circle_radius_bf = 500
+                        elif self.circle_radius_bf > 300:
+                            self.circle_radius_bf = 300
                         self.update_bf_size.emit(self.circle_radius_bf)
                     
                     else:
