@@ -295,8 +295,8 @@ class PPG(QWidget):
             if "biofeedback" in self.ui.params_dict:
                 if bool(self.ui.params_dict["biofeedback"]["enabled"]):
                     self.ui.biofeedback_enable = True
-                    self.ui.bf_win = self.ui.params_dict["biofeedback"]["visual_feedback"]["window"]
-                    self.ui.bf_step = self.ui.params_dict["biofeedback"]["visual_feedback"]["step"]
+                    self.ui.bf_win = int(self.ui.params_dict["biofeedback"]["visual_feedback"]["window"])
+                    self.ui.bf_step = int(self.ui.params_dict["biofeedback"]["visual_feedback"]["step"])
                     self.ui.bf_opt = self.ui.params_dict["biofeedback"]["visual_feedback"]["varying_parameter"]
                     self.ui.bf_ch_index = self.ui.params_dict["biofeedback"]["visual_feedback"]["ch_index"]
                     self.ui.bf_metric = self.ui.params_dict["biofeedback"]["visual_feedback"]["metric"]
@@ -625,7 +625,7 @@ class PPG(QWidget):
         mySrc.log_signal.connect(self.update_log)
         mySrc.stop_signal.connect(self.stop_record_from_thread)
         if self.ui.biofeedback_enable:
-            mySrc.bf_signal.connect(self.ui.biofeedback_thread.add_bf_ppg_data)
+            mySrc.bf_signal.connect(self.ui.biofeedback_thread.add_bf_data)
 
         value = []
         value_filt = []
