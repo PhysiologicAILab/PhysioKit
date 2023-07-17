@@ -15,6 +15,7 @@ class BioFeedback_Thread(QThread):
         self.bf_metric = bf_metric
         self.fs = fs
         self.window_len = window_len
+        self.step_secs = step_len
         self.step_len = step_len
         self.win_samples = self.fs * self.window_len
         self.step_samples = self.fs * self.step_len
@@ -134,4 +135,4 @@ class BioFeedback_Thread(QThread):
                     print(e)
 
             else:
-                time.sleep(0.5)
+                time.sleep(self.step_secs)
