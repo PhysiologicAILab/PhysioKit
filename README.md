@@ -1,4 +1,7 @@
 # **Overview of PhysioKit**
+Authors: Jitesh Joshi, Katherine Wang, and Youngjun Cho 
+Contact: Physiological Computing and Artificial Intelligence lab @ GDIH - WHO Collaboration Centre for Assistive Technology, UCL Computer Science  (youngjun.cho@ucl.ac.uk)
+
 PhysioKit is a novel physiological computing toolkit which is open-source, accessible and affordable. HCI hobbyists and practitioners can easily access physiological sensing channels that help monitor our physiological signatures and vital signs including heart rate, heart rate variability, breathing rate, electrodermal activities. The toolkit works with a low-cost micro-controller such as Arduino. Currently, it supports acquiring EDA, Resp and PPG using any low-cost Arduino board.
 
 PhysioKit consists of (i) a sensor and hardware layer that can be configured in a modular manner along with research needs, (ii) a software application layer that enables real-time data collection, streaming and visualization for both single and multi-user experiments. This also supports basic visual biofeedback configurations and multi-signal synchronization for co-located or remote multi-user settings.
@@ -8,7 +11,7 @@ Below figure shows architecture of PhysioKit:
 <img src="images/architecture.png" alt="Architecture of PhysioKit" width="1024"/>
 </p>
 
-Authors: Jitesh Joshi, Katherine Wang, and Youngjun Cho (youngjun.cho@ucl.ac.uk)
+
 
 ## **Installation**
 Clone the repository or Download and unzip the package.
