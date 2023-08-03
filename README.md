@@ -8,6 +8,8 @@ Below figure shows architecture of PhysioKit:
 <img src="images/architecture.png" alt="Architecture of PhysioKit" width="1024"/>
 </p>
 
+Authors: Jitesh Joshi, Katherine Wang, and Youngjun Cho (youngjun.cho@ucl.ac.uk)
+
 ## **Installation**
 Clone the repository or Download and unzip the package.
 
