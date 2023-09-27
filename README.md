@@ -15,7 +15,7 @@ Below figure shows architecture of PhysioKit:
 
 ## **Installation**
 If you are using Python virtual environment, activate the same or create new.
-You can use pip to install PhysioKit, using the below mentioned command:
+You can use [PyPI package](https://pypi.org/project/PhysioKit2/) to install PhysioKit, using the below mentioned command:
 ``` bash
 pip install PhysioKit2
 ```
