@@ -14,15 +14,10 @@ Below figure shows architecture of PhysioKit:
 
 
 ## **Installation**
-Clone the repository or Download and unzip the package.
-
-Open terminal at the folder where the repository is located.
-
 If you are using Python virtual environment, activate the same or create new
-
-Install necessary Python packages: 
+You can use pip to install PhysioKit, using the below mentioned command:
 ``` bash
-pip install -r requirements.txt
+pip install PhysioKit
 ```
 
 ## **Usage Instructions**
