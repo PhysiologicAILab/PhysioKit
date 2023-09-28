@@ -2,8 +2,8 @@ import os
 os.environ["PYSIDE_DESIGNER_PLUGINS"] = '.'
 
 # This Python file uses the following encoding: utf-8
-from utils.external_sync import ServerThread, ClientThread
-from utils.biofeedback_vis import BioFeedback_Thread
+from .utils.external_sync import ServerThread, ClientThread
+from .utils.biofeedback_vis import BioFeedback_Thread
 
 import threading
 import time
@@ -36,8 +36,8 @@ from matplotlib.backends.backend_qtagg import FigureCanvasQTAgg as FigureCanvas
 from matplotlib.animation import TimedAnimation
 from matplotlib.figure import Figure
 
-from utils.data_processing_lib import lFilter, lFilter_moving_average
-from utils.devices import serialPort
+from .utils.data_processing_lib import lFilter, lFilter_moving_average
+from .utils.devices import serialPort
 import argparse
 
 
