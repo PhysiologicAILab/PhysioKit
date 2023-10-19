@@ -16,6 +16,7 @@ warnings.filterwarnings('ignore')
 
 from analysis_helper.utils.load_data import load_csv_data_all
 from sqa.inference import sqaPPGInference
+import matplotlib.pyplot as plt
 
 class Process_Signals(object):
     def __init__(self, config, datapath, savepath, datadict) -> None:
@@ -101,7 +102,7 @@ class Process_Signals(object):
     def compute_sqa(self, filtered_bvp_vec, fs):
 
         sig_vec = deepcopy(filtered_bvp_vec)
-        sig_vec = np.array(sig_vec)
+        sig_vec = -1 * np.array(sig_vec)
         total_samples = len(sig_vec)
         # print("total_samples", total_samples)
 
@@ -110,8 +111,9 @@ class Process_Signals(object):
         # sqi_number_of_windows_to_average = int(self.sqi_window_len_sec/ self.sqi_step_sec)
 
         sqi_vec_array = np.array([])
+        # bvp_vec_array = np.array([])
 
-        for start_time_idx in np.arange(0, total_samples - sqi_window_len_samples, sqi_step_samples):
+        for start_time_idx in np.arange(0, total_samples - sqi_window_len_samples, sqi_step_samples-1):
             end_time_idx = start_time_idx + sqi_window_len_samples
             
             bvp_seg_filtered = sig_vec[start_time_idx: end_time_idx]
@@ -120,13 +122,21 @@ class Process_Signals(object):
             # exit()
 
             # compute SQIs
+            # bvp_vec, sq_vec, _ = self.sqa_inference_obj.run_inference(bvp_seg_filtered, axis=1)
             sq_vec = self.sqa_inference_obj.run_inference(bvp_seg_filtered, axis=1)
+            # exit()
 
             sqi_vec_array = np.append(sqi_vec_array, sq_vec)
+            # bvp_vec_array = np.append(bvp_vec_array, bvp_vec)
 
-        # sqi_vec_array = 1 - sqi_vec_array
+        # fig, ax = plt.subplots(2, 1)
+        # ax[0].plot(bvp_vec_array.T)
+        # ax[1].plot(sqi_vec_array.T)
+        # plt.show()
+        # plt.close(fig)
+        sqi_vec_array = 1 - sqi_vec_array
 
-        return np.mean(sqi_vec_array)
+        return np.median(sqi_vec_array)
 
 
 
@@ -171,7 +181,7 @@ class Process_Signals(object):
         # print("PPG_Clean", len(ppg_epochs["1"]["PPG_Clean"]))
         # print("PPG_Rate", len(ppg_epochs["1"]["PPG_Rate"]))
 
-        sos = signal.butter(0, (float(self.exp_dict["low_cut_freq"]), float(self.exp_dict["high_cut_freq"])), 'bandpass', fs=self.fs, output='sos')
+        sos = signal.butter(0, (float(self.exp_dict["low_cut_freq"]), float(self.exp_dict["high_cut_freq"])), 'bandpass', fs=self.fs_actual, output='sos')
         filtered_ppg = signal.sosfilt(sos, ppg)
         filtered_ppg = filtered_ppg[self.discard_len * fs_actual:]
 
