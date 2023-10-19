@@ -8,6 +8,7 @@ ui_form.py
 data**/**
 **temp.csv
 .vscode**/**
+analysis/**
 
 # C extensions
 *.so

@@ -1,0 +1,126 @@
+{
+    "save_plot_flag": true,
+    "fs": 250,
+    "fs_margin": 30,
+    "total_duration": 300,
+    "winlen": 20,
+    "step_len": 5,
+    "low_cut_freq": 0.5,
+    "high_cut_freq": 5.0,
+    "sqi_window_len_sec": 10.0,
+    "sqa_config": "sqa/config/sqa_ppg.json",
+    "sqi_step_sec": 10.0,
+    "SQI_threshold": 0.7,
+    "skip_iqr_checks": false,
+    "absolute_difference_for_relative_metrics_change": true,
+    "metrics": [
+        "PPG_Rate_Mean",
+        "HRV_MeanNN",
+        "HRV_SDNN",
+        "HRV_RMSSD",
+        "HRV_SDSD",
+        "HRV_pNN50",
+        "HRV_pNN20"
+    ],
+    "metrics_range": {
+        "PPG_Rate_Mean": [40, 130],
+        "HRV_MeanNN": [500, 1500],
+        "HRV_SDNN": [15, 250],
+        "HRV_RMSSD": [10, 300],
+        "HRV_SDSD": [10, 300],
+        "HRV_pNN50": [2, 100],
+        "HRV_pNN20": [5, 100],
+        "HRV_LFHF": [0.1, 5.0]
+    },
+    "eda_sig_metrics": [
+        "EDA_Tonic",
+        "EDA_Phasic"
+    ],
+    "eda_process_metrics": [
+        "SCR_Height",
+        "SCR_Amplitude",
+        "SCR_RiseTime",
+        "SCR_RecoveryTime"
+    ],
+    "eda_interval_metrics": [
+        "SCR_Peaks_N",
+        "SCR_Peaks_Amplitude_Mean",
+        "EDA_Tonic_SD",
+        "EDA_Sympathetic",
+        "EDA_SympatheticN",
+        "EDA_Autocorrelation"
+    ],
+    "conds": [
+        "baseline",
+        "passive",
+        "easy",
+        "hard"
+    ],
+    "ppg_sensors": [
+        "ppg1",
+        "ppg2"
+    ],
+    "opt_sensor": "best",
+    "mode": "non_debug",
+    "debug_pids": ["P04"],
+    "discard_pids": [],
+
+    "pids": {
+        "P11": {
+            "baseline": {
+                "path": "P11_baseline_1675943915_070305.csv"
+            },
+            "passive": {
+                "path": "P11_A_Passive_1675944284_729139.csv"
+            },
+            "easy": {
+                "path": "P11_B_Easy_1675945221_5438.csv"
+            },
+            "hard": {
+                "path": "P11_C_Hard_1675946420_83677.csv"
+            }
+        },
+        "P12":{
+                "baseline": {
+                    "path": "P12_baseline_1675943910_462031.csv"
+                },
+                "easy":{
+                    "path": "P12_B_Easy_1675945216_936745.csv"
+                },
+                "hard":{
+                    "path": "P12_C_Hard_1675946416_297296.csv"
+                },
+                "passive":{
+                    "path": "P12_A_Passive_1675944265_107143.csv"
+                }
+        },
+        "P21": {
+            "baseline": {
+                "path": "P21_baseline_1675951804_044373.csv"
+            },
+            "easy": {
+                "path": "P21_B_Easy_1675952626_482353.csv"
+            },
+            "hard": {
+                "path": "P21_C_Hard_1675953459_838085.csv"
+            },
+            "passive": {
+                "path": "P21_A_Passive_1675954430_609442.csv"
+            }
+        },
+        "P22": {
+            "baseline": {
+                "path": "P22_baseline_1675951799_453496.csv"
+            },
+            "passive": {
+                "path": "P22_A_Passive_1675954265_554648.csv"
+            },
+            "easy": {
+                "path": "P22_B_Easy_1675952321_45135.csv"
+            },
+            "hard": {
+                "path": "P22_C_Hard_1675953455_265718.csv"
+            }
+        }
+    }
+}        
