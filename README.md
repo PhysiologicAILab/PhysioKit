@@ -109,4 +109,16 @@ Please use Github's *Issues* to report any problem you face while using the Phys
 ---
 
 ### **Citation**:
-To be updated soon.
+@Article{s23198244,
+AUTHOR = {Joshi, Jitesh and Wang, Katherine and Cho, Youngjun},
+TITLE = {PhysioKit: An Open-Source, Low-Cost Physiological Computing Toolkit for Single- and Multi-User Studies},
+JOURNAL = {Sensors},
+VOLUME = {23},
+YEAR = {2023},
+NUMBER = {19},
+ARTICLE-NUMBER = {8244},
+URL = {https://www.mdpi.com/1424-8220/23/19/8244},
+PubMedID = {37837074},
+ISSN = {1424-8220},
+DOI = {10.3390/s23198244}
+}
