@@ -73,7 +73,7 @@ see example below
 python -m PhysioKit2.main --config configs/avr_default/sw_config.json
 ```
 
-This shall open user interface, basic functioning of which is shown in this demo. Please note that the interface currently supports only 1920x1080 screen resolution with 100% scaling. Parts of the interface may not be visible if resolution is lower. For higher resolution, entire interface shall remain visible, though it will not expand to utilize the full resolution.
+This shall open user interface, basic functioning of which is shown in this demo. Please note that if secondary screen is connected, the interface uses it to adjust its resolution, however it may have to be moved to the secondary screen if it got launched on the primary.
 
 <p align="left">
     <img src="images/PhysioKitDemo.gif" alt="Demo of PhysioKit" width="1024"/>
