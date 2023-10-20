@@ -7,3 +7,5 @@ PySide6_Addons
 PySide6_Essentials
 scipy
 matplotlib
+pandas
+torch
