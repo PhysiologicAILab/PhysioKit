@@ -7,7 +7,7 @@
     <x>0</x>
     <y>0</y>
     <width>1920</width>
-    <height>1000</height>
+    <height>1080</height>
    </rect>
   </property>
   <property name="sizePolicy">
@@ -574,9 +574,6 @@ Conditions</string>
      <property name="text">
       <string/>
      </property>
-     <property name="pixmap">
-      <pixmap>images/banner.png</pixmap>
-     </property>
      <property name="scaledContents">
       <bool>true</bool>
      </property>
@@ -666,9 +663,6 @@ Conditions</string>
          </property>
          <property name="text">
           <string/>
-         </property>
-         <property name="pixmap">
-          <pixmap>images/color_bar.png</pixmap>
          </property>
         </widget>
        </item>

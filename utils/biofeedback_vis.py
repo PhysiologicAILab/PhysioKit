@@ -52,7 +52,7 @@ class BioFeedback_Thread(QThread):
     def stop(self):
         self.stop_flag = True
         self.terminate()
-        print("Server thread terminated...")
+        print("Biofeedback thread terminated...")
 
 
     def add_bf_data(self, sig_val):

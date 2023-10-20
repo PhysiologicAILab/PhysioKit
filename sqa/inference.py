@@ -37,8 +37,6 @@ class sqaPPGInference(object):
         self.total_samples = int((self.seq_len) * self.target_fs)
 
         self.sq_resolution = self.model_config["data"]["sq_resolution_sec"]
-        if self.sq_resolution > 0:
-            self.sq_label_len = int(self.seq_len/ self.sq_resolution)
 
         self.sqPPG_model = sqPPG(self.model_config).to(self.device)
         model_dir = os.path.join("sqa", "ckpt")

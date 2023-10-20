@@ -1,6 +1,5 @@
 {
     "data":{
-        "org_fs": 64,
         "target_fs": 32,
         "window_len_sec": 10,
         "sq_resolution_sec": 0.5

@@ -1,9 +1,9 @@
 import os
 os.environ["PYSIDE_DESIGNER_PLUGINS"] = '.'
+os.environ["QT_LOGGING_RULES"]='*.debug=false;qt.pysideplugin=false'
+import argparse
 
 # This Python file uses the following encoding: utf-8
-from .utils.external_sync import ServerThread, ClientThread
-from .utils.biofeedback_vis import BioFeedback_Thread
 
 import threading
 import time
@@ -35,19 +35,24 @@ except:
 from matplotlib.backends.backend_qtagg import FigureCanvasQTAgg as FigureCanvas
 from matplotlib.animation import TimedAnimation
 from matplotlib.figure import Figure
+import matplotlib.pyplot as plt
 
-from .utils.data_processing_lib import lFilter, lFilter_moving_average
-from .utils.devices import serialPort
-import argparse
+
+from utils.data_processing_lib import lFilter, lFilter_moving_average
+from utils.external_sync import ServerThread, ClientThread
+from utils.biofeedback_vis import BioFeedback_Thread
+from utils.devices import serialPort
+from sqa.inference_thread import sqaPPGInference
 
 
 global live_acquisition_flag, hold_acquisition_thread, nChannels, \
-temp_filename, marker_event_status, sampling_rate, csvfile_handle, \
+channel_types, temp_filename, marker_event_status, sampling_rate, csvfile_handle, \
 anim_running
 
 live_acquisition_flag = False
 hold_acquisition_thread = True
 nChannels = 4                   #default
+channel_types = ["eda", "resp", "ppg", "ppg"]
 marker_event_status = False
 sampling_rate = 250             #default
 csvfile_handle = None
@@ -57,6 +62,7 @@ anim_running = False
 class Communicate(QObject):
     data_signal = Signal(list)
     data_signal_filt = Signal(list)
+    sq_signal = Signal(list)
     bf_signal = Signal(float)
     time_signal = Signal(int)
     log_signal = Signal(str)
@@ -80,7 +86,15 @@ class PPG(QWidget):
         ui_file.open(QFile.ReadOnly)
         self.ui = loader.load(ui_file, self)
 
+        pixmap = QPixmap('images/banner.png')
+        self.ui.label.setPixmap(pixmap)
+
         self.ui.exp_loaded = False
+        self.ui.biofeedback_enable = False
+        self.ui.sq_thread_created = False
+        
+        self.ui.resize(args_parser.width, args_parser.height)
+        # self.ui.adjustSize()
 
         global sampling_rate
         # Default params
@@ -88,10 +102,10 @@ class PPG(QWidget):
         self.ui.baudrate = 115200
 
         self.resp_lowcut = 0.1
-        self.resp_highcut = 0.4
-        self.ppg_lowcut = 0.8
-        self.ppg_highcut = 3.5
-        self.filt_order = 2
+        self.resp_highcut = 0.5
+        self.ppg_lowcut = 0.5
+        self.ppg_highcut = 5.0
+        self.filt_order = 1
         self.eda_moving_average_window_size = int(sampling_rate/4.0)
 
         self.ui.spObj = serialPort()
@@ -189,8 +203,6 @@ class PPG(QWidget):
         csvfile_handle = open(temp_filename, 'w', encoding="utf", newline="")
         self.writer = csv.writer(csvfile_handle)
 
-        self.ui.biofeedback_enable = False
-
         ui_file.close()
 
 
@@ -203,6 +215,10 @@ class PPG(QWidget):
         if anim_running:
             TimedAnimation._stop(self.myAnim)
             anim_running = False
+
+        if self.ui.sq_thread_created:
+            if self.ui.sq_inference_thread.isRunning():
+                self.ui.sq_inference_thread.stop()
 
         if self.ui.biofeedback_enable:
             if self.ui.biofeedback_thread.isRunning():
@@ -261,7 +277,7 @@ class PPG(QWidget):
 
     def load_exp_params(self):
 
-        global nChannels, sampling_rate
+        global nChannels, sampling_rate, channel_types
         
         fname = QFileDialog.getOpenFileName(filter='*.json')[0]
         self.ui.label_params_file.setText(os.path.basename(fname))
@@ -310,6 +326,8 @@ class PPG(QWidget):
                 if self.ui.bf_opt == "size":
                     self.ui.biofeedback_thread.update_bf_size.connect(self.update_bf_visualization_size)
                 else:
+                    pixmap = QPixmap('images/color_bar.png')
+                    self.ui.label_palette.setPixmap(pixmap)
                     self.ui.biofeedback_thread.update_bf_color.connect(self.update_bf_visualization_color)
 
                 if self.ui.bf_opt == "size":
@@ -351,6 +369,7 @@ class PPG(QWidget):
             self.ui.channels = self.ui.params_dict["exp"]["channels"]
             nChannels = len(self.ui.channels)
             self.ui.channel_types = self.ui.params_dict["exp"]["channel_types"]
+            channel_types = self.ui.channel_types
             self.ui.channel_plot_colors = self.ui.sw_config_dict["exp"]["channel_plot_colors"][:nChannels]
             self.csv_header = self.ui.channels + ["event_code"]
             self.writer.writerow(self.csv_header)
@@ -367,12 +386,24 @@ class PPG(QWidget):
                     self.filt_objs[str(nCh)] = lFilter(self.ppg_lowcut, self.ppg_highcut, sampling_rate, order=self.filt_order)
 
             # # Place the matplotlib figure
-            self.figCanvas = FigCanvas(channels = self.ui.channels, ch_colors = self.ui.channel_plot_colors)
+            gv_rect = self.ui.graphicsView.viewport().rect()
+            gv_width = gv_rect.width()
+            gv_height = gv_rect.height()
+            self.figCanvas = FigCanvas(channels = self.ui.channels, ch_colors = self.ui.channel_plot_colors, width=gv_width, height=gv_height)
             self.myAnim = LivePlotFigCanvas(figCanvas=self.figCanvas)
             self.graphic_scene = QGraphicsScene()
             self.graphic_scene.addWidget(self.figCanvas)
             self.ui.graphicsView.setScene(self.graphic_scene)
             self.ui.graphicsView.show()
+
+            if "ppg" in channel_types:
+                self.sqa_config = self.ui.sw_config_dict["exp"]["sqa_config"]
+                self.ui.ppg_sq_indices = list(np.where(np.array(channel_types) == "ppg")[0])
+                num_sq_ch = len(self.ui.ppg_sq_indices)
+                self.ui.sq_inference_thread = sqaPPGInference(
+                    self.sqa_config, sampling_rate, num_sq_ch, axis=1, parent=self)
+                self.ui.sq_inference_thread.update_sq_vec.connect(self.myAnim.addSQData)
+                self.ui.sq_thread_created = True
 
             self.ui.exp_loaded = True
             if self.ui.ser_open_status:
@@ -483,6 +514,8 @@ class PPG(QWidget):
                 self.phys_data_acquisition_thread.start()
                 self.phys_data_acq_started_flag = True
                 self.ui.label_status.setText("Live acquisition started")
+
+                self.ui.sq_inference_thread.start()
 
                 if self.ui.biofeedback_enable:
                     self.ui.biofeedback_thread.start()
@@ -616,7 +649,7 @@ class PPG(QWidget):
 
 
     def phys_data_acquisition(self):
-        global live_acquisition_flag, hold_acquisition_thread, nChannels
+        global live_acquisition_flag, hold_acquisition_thread, nChannels, channel_types
         # Setup the signal-slot mechanism.
         mySrc = Communicate()
         mySrc.data_signal.connect(self.csvWrite_function)
@@ -624,6 +657,7 @@ class PPG(QWidget):
         mySrc.time_signal.connect(self.update_time_elapsed)
         mySrc.log_signal.connect(self.update_log)
         mySrc.stop_signal.connect(self.stop_record_from_thread)
+        mySrc.sq_signal.connect(self.ui.sq_inference_thread.add_sq_data)
         if self.ui.biofeedback_enable:
             mySrc.bf_signal.connect(self.ui.biofeedback_thread.add_bf_data)
 
@@ -684,6 +718,11 @@ class PPG(QWidget):
                         curr_elapsed_time = 0
 
                     mySrc.data_signal_filt.emit(value_filt)
+                    if "ppg" in channel_types:
+                        filt_val = []
+                        for idx in self.ui.ppg_sq_indices:
+                            filt_val.append(value_filt[idx])
+                        mySrc.sq_signal.emit(filt_val)
                     if self.ui.biofeedback_enable:
                         mySrc.bf_signal.emit(value_filt[self.ui.bf_ch_index])
 
@@ -704,7 +743,7 @@ class PPG(QWidget):
 
 class FigCanvas(FigureCanvas):
     def __init__(self, channels, ch_colors, parent=None, width=13.8, height=7.5, dpi=100):
-        global nChannels, sampling_rate
+        global nChannels, sampling_rate, channel_types
         
         self.max_plot_time = 10 # 30 second time window
         self.max_plot_channels = 4
@@ -712,12 +751,19 @@ class FigCanvas(FigureCanvas):
         self.x_axis = np.linspace(0, self.max_plot_time, self.max_plot_time*sampling_rate)
 
         self.plot_signals = []
+        self.sq_vecs = []
         self.axs = {}
         self.lines = {}
+        self.sq_images = {}
+        width = width/dpi
+        height = height/dpi
+
         self.fig = Figure(figsize=(width, height), dpi=dpi, tight_layout=True)
+        # self.fig = Figure(constrained_layout=True)
 
         for nCh in range(self.nChannels):
-            self.plot_signals.append(1000 * np.ones(self.max_plot_time * sampling_rate))
+            self.plot_signals.append(10 * np.ones(self.max_plot_time * sampling_rate))
+            self.sq_vecs.append(0.5 * np.ones((1, self.max_plot_time * 2))) # 1/0.5 as 0.5 is sq_resolution. 
 
             if self.nChannels == self.max_plot_channels:
                 self.axs[str(nCh)] = self.fig.add_subplot(2, 2, nCh+1)
@@ -725,6 +771,10 @@ class FigCanvas(FigureCanvas):
                 self.axs[str(nCh)] = self.fig.add_subplot(self.nChannels, 1, nCh+1)
 
             (self.lines[str(nCh)],) = self.axs[str(nCh)].plot(self.x_axis, self.plot_signals[nCh], ch_colors[nCh], markersize=10, linestyle='solid')
+            if channel_types[nCh] == "ppg":
+                self.sq_images[str(nCh)] = self.axs[str(nCh)].imshow(
+                    self.sq_vecs[nCh], clim=(0,1), cmap=plt.cm.RdYlGn, aspect='auto', alpha=0.5, extent=(0, self.max_plot_time, 0, 1)
+                    )
             self.axs[str(nCh)].set_xlabel('Time (seconds)', fontsize=16)
             self.axs[str(nCh)].set_ylabel(channels[nCh], fontsize=16)
             self.axs[str(nCh)].set_xlim(0, self.max_plot_time)
@@ -739,11 +789,14 @@ class FigCanvas(FigureCanvas):
 class LivePlotFigCanvas(TimedAnimation):
     def __init__(self, figCanvas: FigureCanvas, interval: int = 40) -> None:
         self.fig = figCanvas.fig
-        global nChannels, sampling_rate, anim_running
+        global nChannels, sampling_rate, anim_running, channel_types
         self.sampling_rate = sampling_rate
 
+        self.exception_count = 0
         self.max_plot_channels = 4
         self.nChannels = min(nChannels, self.max_plot_channels)  #maximum number of channels for plaotting = 4
+        self.channel_types = channel_types[:self.nChannels]
+        self.ppg_sq_indices = list(np.where(np.array(channel_types) == "ppg")[0])
 
         self.max_plot_time = 10 # 30 second time window
         self.event_toggle = False
@@ -752,8 +805,10 @@ class LivePlotFigCanvas(TimedAnimation):
 
         self.count_frame = 0
         self.plot_signals = figCanvas.plot_signals
+        self.sq_vecs = figCanvas.sq_vecs
         self.axs = figCanvas.axs
         self.lines = figCanvas.lines
+        self.sq_images = figCanvas.sq_images
         anim_running = True
 
         super(LivePlotFigCanvas, self).__init__(self.fig, interval, blit=True)
@@ -765,16 +820,26 @@ class LivePlotFigCanvas(TimedAnimation):
 
     def _init_draw(self):
         lines = []
+        sq_images = []
         for nCh in range(self.nChannels):
             lines.append(self.lines[str(nCh)])
+            if self.channel_types[nCh] == "ppg":
+                sq_images.append(self.sq_images[str(nCh)])
         lines = tuple(lines)
-        return (lines)
+        sq_images = tuple(sq_images)
+        # return (tuple(lines), tuple(sq_images))
+        return (lines, sq_images)
 
 
     def reset_draw(self):
         self.count_frame = 0 # self.max_plot_time * sampling_rate
         return
 
+    def addSQData(self, value):
+        for indx in range(len(self.ppg_sq_indices)):
+            self.sq_vecs[self.ppg_sq_indices[indx]] = 1 - value[indx]
+            # print(1 - value[indx])
+        return
 
     def addData(self, value):
         self.count_frame += 1
@@ -802,9 +867,11 @@ class LivePlotFigCanvas(TimedAnimation):
 
             if self.count_frame >= self.max_frames_for_relimiting_axis:
                 self.count_frame = 0
-
-                for nCh in range(self.nChannels):
-                    self.axs[str(nCh)].set_ylim(np.min(self.plot_signals[nCh]), np.max(self.plot_signals[nCh]))
+                # for nCh in range(self.nChannels):
+                #     mx = np.max(self.plot_signals[nCh])
+                #     mn = np.min(self.plot_signals[nCh])
+                #     self.plot_signals[nCh] = (self.plot_signals[nCh] - mn)/(mx - mn)
+                #     # self.axs[str(nCh)].set_ylim(np.min(self.plot_signals[nCh]), np.max(self.plot_signals[nCh]))
 
             if self.event_toggle:
                 if marker_event_status:
@@ -817,9 +884,14 @@ class LivePlotFigCanvas(TimedAnimation):
 
             self._drawn_artists = []
             for nCh in range(self.nChannels):
-                self.lines[str(nCh)].set_ydata(self.plot_signals[nCh])
+                mx = np.max(self.plot_signals[nCh])
+                mn = np.min(self.plot_signals[nCh])
+                sig = (self.plot_signals[nCh] - mn)/(mx - mn)
+                self.lines[str(nCh)].set_ydata(sig)
+                if self.channel_types[nCh] == "ppg":
+                    self.sq_images[str(nCh)].set_data(self.sq_vecs[nCh])
+                    self._drawn_artists.append(self.sq_images[str(nCh)])
                 self._drawn_artists.append(self.lines[str(nCh)])
-
         return
 
 
@@ -836,13 +908,20 @@ def main(app, args_parser):
 
 if __name__ == '__main__':
 
-    parser = argparse.ArgumentParser()
-    parser.add_argument('--config', default='configs/Uno/sw_config.json', type=str,
-                        dest='config', help='Software Config file-path')
-    parser.add_argument('REMAIN', nargs='*')
-    args_parser = parser.parse_args()
-
     # Create the application instance.
     app = QApplication([])
+
+    parser = argparse.ArgumentParser()
+    parser.add_argument('--config', default='configs/avr_default/sw_config.json', type=str,
+                        dest='config', help='Software Config file-path')
+
+    (width,height) = app.screens()[-1].size().toTuple()
+    print("Adjusting to last screen added: width, height", width, height)
+
+    parser.add_argument('--width', default=width, dest="width", type=int)
+    parser.add_argument('--height', default=height, dest="height", type=int)
+
+    parser.add_argument('REMAIN', nargs='*')
+    args_parser = parser.parse_args()
 
     main(app, args_parser)

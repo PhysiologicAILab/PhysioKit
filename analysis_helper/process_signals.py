@@ -65,7 +65,7 @@ class Process_Signals(object):
                 self.sqi_window_len_sec = float(self.exp_dict["sqi_window_len_sec"])
                 self.sqi_step_sec = float(self.exp_dict["sqi_step_sec"])
                 self.sqa_config = self.exp_dict["sqa_config"]
-                self.sqa_inference_obj = sqaPPGInference(self.sqa_config)
+                self.sqa_inference_obj = sqaPPGInference(self.sqa_config, debug=False)
 
                 self.min_epoch_count = np.round(0.70 * (300 - self.exp_dict["winlen"]) /(self.exp_dict["step_len"]))
 
