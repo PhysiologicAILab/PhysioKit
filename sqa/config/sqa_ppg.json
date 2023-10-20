@@ -1,22 +1,22 @@
 {
     "data":{
         "org_fs": 64,
-        "target_fs": 16,
+        "target_fs": 32,
         "window_len_sec": 10,
-        "sq_resolution_sec": 1
+        "sq_resolution_sec": 0.5
     },
     "train_params": {
         "kernel_size": [
+            31,
             21,
-            17,
             11
         ]
     },
     "model_params": {
         "INPUT_CHANNELS": 1,
         "MD_S": 1,
-        "MD_D": 10,
-        "MD_R": 10,
+        "MD_D": 20,
+        "MD_R": 20,
         "TRAIN_STEPS": 6,
         "EVAL_STEPS": 6,
         "INV_T": 1,

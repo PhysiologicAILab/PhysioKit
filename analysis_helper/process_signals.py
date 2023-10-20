@@ -48,7 +48,7 @@ class Process_Signals(object):
                 self.fs = int(self.exp_dict["fs"])
                 self.total_duration = int(self.exp_dict["total_duration"])
                 self.save_pth = os.path.join(savepath, "W" + str(self.exp_dict["winlen"]) + "_S" + str(self.exp_dict["step_len"]) \
-                                             + "_" + "_" + self.sensor_name)
+                                             + "_" + self.sensor_name)
                 self.ppg_plot_path = os.path.join(self.save_pth, "PPG_Plots")
                 self.save_plot_flag = bool(self.exp_dict["save_plot_flag"])
                 self.fs_actual = -1
@@ -108,33 +108,31 @@ class Process_Signals(object):
 
         sqi_window_len_samples = int(fs * self.sqi_window_len_sec)
         sqi_step_samples = int(fs * self.sqi_step_sec)
-        # sqi_number_of_windows_to_average = int(self.sqi_window_len_sec/ self.sqi_step_sec)
 
         sqi_vec_array = np.array([])
-        # bvp_vec_array = np.array([])
 
         for start_time_idx in np.arange(0, total_samples - sqi_window_len_samples, sqi_step_samples-1):
             end_time_idx = start_time_idx + sqi_window_len_samples
             
             bvp_seg_filtered = sig_vec[start_time_idx: end_time_idx]
             bvp_seg_filtered = bvp_seg_filtered.reshape(1, -1)
-            # print(bvp_seg_filtered.shape)
-            # exit()
 
             # compute SQIs
             # bvp_vec, sq_vec, _ = self.sqa_inference_obj.run_inference(bvp_seg_filtered, axis=1)
             sq_vec = self.sqa_inference_obj.run_inference(bvp_seg_filtered, axis=1)
-            # exit()
 
             sqi_vec_array = np.append(sqi_vec_array, sq_vec)
-            # bvp_vec_array = np.append(bvp_vec_array, bvp_vec)
+
+
+        sqi_vec_array = 1 - sqi_vec_array
+        # sqi_vec_array[sqi_vec_array < self.SQI_threshold] = 0
+        # sqi_vec_array[sqi_vec_array >= self.SQI_threshold] = 1
 
         # fig, ax = plt.subplots(2, 1)
         # ax[0].plot(bvp_vec_array.T)
         # ax[1].plot(sqi_vec_array.T)
         # plt.show()
         # plt.close(fig)
-        sqi_vec_array = 1 - sqi_vec_array
 
         return np.median(sqi_vec_array)
 
