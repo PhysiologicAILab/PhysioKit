@@ -1,6 +1,4 @@
 import os
-os.environ["CUDA_VISIBLE_DEVICES"] = "3"
-
 import argparse
 import json
 import numpy as np
@@ -17,7 +15,7 @@ class sqaPPGInference(object):
     """
         The class to infer signal quality for BVP signal
     """
-    def __init__(self, model_config) -> None:
+    def __init__(self, model_config, debug=False) -> None:
 
         # Get cpu, gpu or mps device for inference.
         device = ("cuda" if torch.cuda.is_available() else "cpu")
@@ -33,6 +31,7 @@ class sqaPPGInference(object):
             print("Exiting the code.")
             exit()
 
+        self.debug = debug
         self.target_fs = self.model_config["data"]["target_fs"]
         self.seq_len = self.model_config["data"]["window_len_sec"]
         self.total_samples = int((self.seq_len) * self.target_fs)
@@ -63,7 +62,8 @@ class sqaPPGInference(object):
 
     def run_inference(self, bvp_vec, axis=0):
         with torch.no_grad():
-            # t0 = time.time()
+            if self.debug:
+                t0 = time.time()
             # bvp_vec = signal.sosfilt(self.sos, bvp_vec) # bvp_vec needs to be filtered in the same range            
             bvp_vec = signal.resample(bvp_vec, self.total_samples, axis=axis)
 
@@ -83,15 +83,18 @@ class sqaPPGInference(object):
             sqa_vec = self.sqPPG_model(input_vec)
             sqa_vec = sqa_vec.cpu().numpy().squeeze(1)
             # print("sqa_vec.shape", sqa_vec.shape)
-            # elapsed_time = time.time() - t0
-            # print("elapsed time:", elapsed_time)
 
-            return sqa_vec
-            # return bvp_vec, sqa_vec, elapsed_time
+            if self.debug:
+                elapsed_time = time.time() - t0
+                print("elapsed time:", elapsed_time)
+                return bvp_vec, sqa_vec, elapsed_time
+            else:
+                return sqa_vec
+            
 
 
 def main(args_parser):
-    testObj = sqaPPGInference(args_parser.model_config)
+    testObj = sqaPPGInference(args_parser.model_config, debug=True)
     bvp_vec = np.random.rand(1, 10*64)
     # print(bvp_vec.shape)
     # exit()
