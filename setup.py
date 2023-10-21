@@ -7,7 +7,7 @@ long_description = (this_directory / "README.md").read_text()
 
 setup(name='PhysioKit2',
       version='1.7.2',
-      description="PhysioKit is a novel physiological computing toolkit which is open-source, accessible and affordable. HCI hobbyists and practitioners can easily access physiological sensing channels that help monitor our physiological signatures and vital signs including heart rate, heart rate variability, breathing rate, electrodermal activities. The toolkit works with a low-cost micro-controller such as Arduino. Currently, it supports acquiring EDA, Resp and PPG using any low-cost Arduino board.",
+      description="PhysioKit: An Open-Source, Low-Cost Physiological Computing Toolkit for Single- and Multi-User Studies",
       long_description=long_description,
       long_description_content_type='text/markdown',
       url='https://github.com/PhysiologicAILab/PhysioKit',

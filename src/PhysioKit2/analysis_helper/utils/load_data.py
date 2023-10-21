@@ -11,7 +11,6 @@ def load_csv_data_all(filepath):
     resp = []
     ppg1 = []
     ppg2 = []
-    arduino_ts = []
     event_code = []
     skip_first = True
     with open(filepath, newline='') as csvfile:
@@ -27,9 +26,8 @@ def load_csv_data_all(filepath):
                 resp.append(float(ln[1]))
                 ppg1.append(-1*float(ln[2]))
                 ppg2.append(-1*float(ln[3]))
-                arduino_ts.append(float(ln[4]))
-                if ln[5] != '':
-                    event_code.append(float(ln[5]))
+                if ln[4] != '':
+                    event_code.append(float(ln[4]))
                 else:
                     event_code.append(-1)
 
@@ -37,17 +35,14 @@ def load_csv_data_all(filepath):
     resp = np.array(resp)
     ppg1 = np.array(ppg1)
     ppg2 = np.array(ppg2)
-    arduino_ts = np.array(arduino_ts)
-    arduino_ts = (arduino_ts - arduino_ts[0])/1000
     event_code = np.array(event_code)
     csvfile.close()
-    return eda, resp, ppg1, ppg2, arduino_ts, event_code
+    return eda, resp, ppg1, ppg2, event_code
 
 
 def load_csv_data_ppg(filepath):
     ppg1 = []
     ppg2 = []
-    arduino_ts = []
     event_code = []
     skip_first = True
     with open(filepath, newline='') as csvfile:
@@ -61,24 +56,20 @@ def load_csv_data_ppg(filepath):
                 # break
                 ppg1.append(-1*float(ln[2]))
                 ppg2.append(-1*float(ln[3]))
-                arduino_ts.append(float(ln[4]))
-                if ln[5] != '':
-                    event_code.append(float(ln[5]))
+                if ln[4] != '':
+                    event_code.append(float(ln[4]))
                 else:
                     event_code.append(-1)
 
     ppg1 = np.array(ppg1)
     ppg2 = np.array(ppg2)
-    arduino_ts = np.array(arduino_ts)
-    arduino_ts = (arduino_ts - arduino_ts[0])/1000
     event_code = np.array(event_code)
     csvfile.close()
-    return ppg1, ppg2, arduino_ts, event_code
+    return ppg1, ppg2, event_code
 
 
 def load_csv_data_eda(filepath):
     eda = []
-    arduino_ts = []
     event_code = []
     skip_first = True
     with open(filepath, newline='') as csvfile:
@@ -91,24 +82,20 @@ def load_csv_data_eda(filepath):
                 # print(ln)
                 # break
                 eda.append(float(ln[0]))
-                arduino_ts.append(float(ln[4]))
-                if ln[5] != '':
-                    event_code.append(float(ln[5]))
+                if ln[4] != '':
+                    event_code.append(float(ln[4]))
                 else:
                     event_code.append(-1)
 
     eda = np.array(eda)
-    arduino_ts = np.array(arduino_ts)
-    arduino_ts = (arduino_ts - arduino_ts[0])/1000
     event_code = np.array(event_code)
     csvfile.close()
 
-    return eda, arduino_ts, event_code
+    return eda, event_code
 
 
 def load_csv_data_resp(filepath):
     resp = []
-    arduino_ts = []
     event_code = []
     skip_first = True
     with open(filepath, newline='') as csvfile:
@@ -121,17 +108,14 @@ def load_csv_data_resp(filepath):
                 # print(ln)
                 # break
                 resp.append(float(ln[1]))
-                arduino_ts.append(float(ln[4]))
-                if ln[5] != '':
-                    event_code.append(float(ln[5]))
+                if ln[4] != '':
+                    event_code.append(float(ln[4]))
                 else:
                     event_code.append(-1)
 
     resp = np.array(resp)
-    arduino_ts = np.array(arduino_ts)
-    arduino_ts = (arduino_ts - arduino_ts[0])/1000
     event_code = np.array(event_code)
     csvfile.close()
 
-    return resp, arduino_ts, event_code
+    return resp, event_code
 
