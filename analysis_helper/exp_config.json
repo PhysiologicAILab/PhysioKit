@@ -1,8 +1,8 @@
 {
     "save_plot_flag": true,
     "fs": 250,
-    "fs_margin": 30,
     "total_duration": 300,
+    "fs_margin": 30,
     "winlen": 30,
     "step_len": 5,
     "low_cut_freq": 0.5,

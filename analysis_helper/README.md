@@ -1,12 +1,15 @@
 # Data Analysis Helper
 
-### Step-1: Batch processing to compute metrics from PPG and EDA signals:
+### Step-1: Preparing the data and the configuration file
+Sample data and corresponding exp_config.json file is provided to illustrate how to specify the data to be analysed in the configuration file. It is crucial to provide the sampling rate (fs) and total_duration as per that used for data acquisition. Rest of the parameters are self-explanatory, though we will be preparing detailed tutorials and sharing the links to tutorial videos here.
+
+### Step-2: Batch processing to compute metrics from PPG and EDA signals:
 
 ``` bash
 python -m analysis_helper.process_signals --config analysis_helper/exp_config.json --datapath analysis_helper sample_data --opt 0
 ```
 
-### Step-2: Saving and exporting data-tables
+### Step-3: Saving and exporting data-tables
 
 Following command is to illustrate the use when a specific window size and step size is used, i.e. "W65_S10_nk_OptPPG".
 

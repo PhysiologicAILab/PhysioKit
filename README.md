@@ -100,7 +100,8 @@ A brief description of each step is mentioned below:
 ---
 
 ### **Data Analysis**
-Jupyter notebooks *phys_analysis_eda.ipynb*, *phys_analysis_ppg.ipynb*, and *phys_analysis_resp.ipynb* are provided to illustrate basic analysis steps. This includes pre-processing as well as feature extraction for EDA, PPG and Resp signals respectively. 
+Data analysis is supported by the *analysis_helper* folder. To extract features and export in spreadsheet, please refer to the README provided within the folder.
+In addition, Jupyter notebooks *phys_analysis_eda.ipynb*, *phys_analysis_ppg.ipynb*, and *phys_analysis_resp.ipynb* are provided to illustrate basic analysis steps. This includes pre-processing as well as feature extraction for EDA, PPG and Resp signals respectively.
 
 ---
 ### **Additional Support or Reporting Issues with the Library**: 
