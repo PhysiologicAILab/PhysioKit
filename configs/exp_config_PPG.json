@@ -6,6 +6,7 @@
         "channels": ["PPG Finger"],
         "channel_types": ["ppg"],
         "timed_acquisition": true,
+        "assess_signal_quality": true,
         "max_time_seconds": [180, 180],
         "datapath": "data",
         "event_codes": {

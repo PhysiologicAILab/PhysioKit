@@ -18,7 +18,7 @@ import cv2
 from copy import deepcopy
 
 from PySide6.QtWidgets import QApplication, QWidget, QGraphicsScene, QFileDialog
-from PySide6.QtCore import QFile, QObject, Signal, QThread
+from PySide6.QtCore import QFile, QObject, Signal, QThread, Qt
 from PySide6.QtUiTools import QUiLoader
 from PySide6.QtGui import QPixmap, QImage
 
@@ -53,7 +53,7 @@ class physManager(QWidget):
         ui_file = QFile(path)
         ui_file.open(QFile.ReadOnly)
         self.ui = loader.load(ui_file, self)
-
+        self.ui.graphicsView.viewport().setAttribute(Qt.WidgetAttribute.WA_AcceptTouchEvents, False)
         
         pixmap = QPixmap(files('PhysioKit2.images').joinpath('banner.png'))
         self.ui.label.setPixmap(pixmap)
@@ -68,13 +68,6 @@ class physManager(QWidget):
         # Default params
         self.ext_sync_flag = False
         self.ui.baudrate = 115200
-
-        self.resp_lowcut = 0.1
-        self.resp_highcut = 0.5
-        self.ppg_lowcut = 0.5
-        self.ppg_highcut = 5.0
-        self.filt_order = 1
-        self.eda_moving_average_window_size = int(config.SAMPLING_RATE/4.0)
 
         self.ui.spObj = serialPort()
         self.ui.ser_port_names = []
@@ -341,17 +334,6 @@ class physManager(QWidget):
             self.csv_header = self.ui.channels + ["event_code"]
             self.writer.writerow(self.csv_header)
 
-            self.filt_objs = {}
-            self.eda_moving_average_window_size = int(config.SAMPLING_RATE/4.0)
-
-            for nCh in range(config.NCHANNELS):
-                if self.ui.channel_types[nCh] == 'eda':
-                    self.filt_objs[str(nCh)] = lFilter_moving_average(window_size=self.eda_moving_average_window_size)
-                elif self.ui.channel_types[nCh] == 'resp':
-                    self.filt_objs[str(nCh)] = lFilter(self.resp_lowcut, self.resp_highcut, config.SAMPLING_RATE, order=self.filt_order)
-                elif self.ui.channel_types[nCh] == 'ppg':
-                    self.filt_objs[str(nCh)] = lFilter(self.ppg_lowcut, self.ppg_highcut, config.SAMPLING_RATE, order=self.filt_order)
-
             # # Place the matplotlib figure
             gv_rect = self.ui.graphicsView.viewport().rect()
             gv_width = gv_rect.width()
@@ -362,7 +344,7 @@ class physManager(QWidget):
                                        ch_colors = self.ui.channel_plot_colors, 
                                        sq_flag = self.ui.params_dict["exp"]["assess_signal_quality"], 
                                        width = gv_width, height = gv_height)
-            self.myAnim = PlotAnimation(config=config, figCanvas=self.figCanvas)
+            self.myAnim = PlotAnimation(figCanvas=self.figCanvas)
             self.graphic_scene = QGraphicsScene()
             self.graphic_scene.addWidget(self.figCanvas)
             self.ui.graphicsView.setScene(self.graphic_scene)
@@ -649,6 +631,22 @@ class dataAcquisition(QThread):
 
         self.ui = uiObj
         self.stop_flag = False
+        self.filt_objs = {}
+        self.eda_moving_average_window_size = int(config.SAMPLING_RATE/4.0)
+
+        self.resp_lowcut = 0.1
+        self.resp_highcut = 0.5
+        self.ppg_lowcut = 0.5
+        self.ppg_highcut = 5.0
+        self.filt_order = 1
+
+        for nCh in range(config.NCHANNELS):
+            if self.ui.channel_types[nCh] == 'eda':
+                self.filt_objs[str(nCh)] = lFilter_moving_average(window_size=self.eda_moving_average_window_size)
+            elif self.ui.channel_types[nCh] == 'resp':
+                self.filt_objs[str(nCh)] = lFilter(self.resp_lowcut, self.resp_highcut, config.SAMPLING_RATE, order=self.filt_order)
+            elif self.ui.channel_types[nCh] == 'ppg':
+                self.filt_objs[str(nCh)] = lFilter(self.ppg_lowcut, self.ppg_highcut, config.SAMPLING_RATE, order=self.filt_order)
 
 
     def stop(self):

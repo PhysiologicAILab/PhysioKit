@@ -312,6 +312,8 @@ class Ui_PPG(object):
         self.label_sq_legend.setObjectName(u"label_sq_legend")
         sizePolicy4.setHeightForWidth(self.label_sq_legend.sizePolicy().hasHeightForWidth())
         self.label_sq_legend.setSizePolicy(sizePolicy4)
+        self.label_sq_legend.setMaximumSize(QSize(16777215, 40))
+        self.label_sq_legend.setScaledContents(True)
 
         self.gridLayout.addWidget(self.label_sq_legend, 1, 0, 1, 1)
 
