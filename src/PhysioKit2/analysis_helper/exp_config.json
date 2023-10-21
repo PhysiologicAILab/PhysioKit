@@ -8,7 +8,6 @@
     "low_cut_freq": 0.5,
     "high_cut_freq": 5.0,
     "sqi_window_len_sec": 10.0,
-    "sqa_config": "sqa/config/sqa_ppg.json",
     "sqi_step_sec": 10.0,
     "SQI_threshold": 0.5,
     "skip_iqr_checks": false,

@@ -6,6 +6,7 @@ import argparse
 import json
 import pandas as pd
 import neurokit2 as nk
+from importlib.resources import files
 
 import matplotlib.pyplot as plt
 # plt.rcParams["font.family"] = "Times New Roman"
@@ -14,8 +15,8 @@ plt.rcParams["font.size"] = "18"
 import warnings
 warnings.filterwarnings('ignore')
 
-from analysis_helper.utils.load_data import load_csv_data_all
-from sqa.inference import sqaPPGInference
+from PhysioKit2.analysis_helper.utils.load_data import load_csv_data_all
+from PhysioKit2.sqa.inference import sqaPPGInference
 import matplotlib.pyplot as plt
 
 class Process_Signals(object):
@@ -64,7 +65,7 @@ class Process_Signals(object):
 
                 self.sqi_window_len_sec = float(self.exp_dict["sqi_window_len_sec"])
                 self.sqi_step_sec = float(self.exp_dict["sqi_step_sec"])
-                self.sqa_config = self.exp_dict["sqa_config"]
+                self.sqa_config = files('PhysioKit2.sqa.config').joinpath('sqa_ppg.json')
                 self.sqa_inference_obj = sqaPPGInference(self.sqa_config, debug=False)
 
                 self.min_epoch_count = np.round(0.70 * (300 - self.exp_dict["winlen"]) /(self.exp_dict["step_len"]))

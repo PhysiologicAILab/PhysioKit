@@ -9,7 +9,8 @@ import torch.nn as nn
 import matplotlib.pyplot as plt
 from scipy import signal
 
-from sqa.model.sqa_ppg import Model as sqPPG
+from PhysioKit2.sqa.model.sqa_ppg import Model as sqPPG
+from importlib.resources import files
 
 class sqaPPGInference(object):
     """
@@ -39,19 +40,13 @@ class sqaPPGInference(object):
         self.sq_resolution = self.model_config["data"]["sq_resolution_sec"]
 
         self.sqPPG_model = sqPPG(self.model_config).to(self.device)
-        model_dir = os.path.join("sqa", "ckpt")
-        if os.path.exists(model_dir):
-            ckpt_path = os.path.join(model_dir, self.model_config["ckpt_name"])
-            if os.path.exists(ckpt_path):
-                checkpoint = torch.load(ckpt_path, map_location=self.device)
-                self.sqPPG_model.load_state_dict(checkpoint['model_state_dict'])
-                # optimizer.load_state_dict(checkpoint['optimizer_state_dict'])
-            else:
-                print("No checkpoint found, existing...")
-                # exit()
-                return -1
+        ckpt_path = files('PhysioKit2.sqa.ckpt').joinpath(self.model_config["ckpt_name"])
+        if os.path.exists(ckpt_path):
+            checkpoint = torch.load(ckpt_path, map_location=self.device)
+            self.sqPPG_model.load_state_dict(checkpoint['model_state_dict'])
+            # optimizer.load_state_dict(checkpoint['optimizer_state_dict'])
         else:
-            print("No checkpoint directory found, existing...")
+            print("No checkpoint found, existing...")
             # exit()
             return -1
 

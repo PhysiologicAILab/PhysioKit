@@ -24,7 +24,7 @@ class Ui_PPG(object):
     def setupUi(self, PPG):
         if not PPG.objectName():
             PPG.setObjectName(u"PPG")
-        PPG.resize(1920, 1080)
+        PPG.resize(1600, 900)
         sizePolicy = QSizePolicy(QSizePolicy.Expanding, QSizePolicy.Expanding)
         sizePolicy.setHorizontalStretch(0)
         sizePolicy.setVerticalStretch(0)
@@ -308,6 +308,13 @@ class Ui_PPG(object):
 
         self.gridLayout.addWidget(self.graphicsView, 0, 0, 1, 1)
 
+        self.label_sq_legend = QLabel(self.tab)
+        self.label_sq_legend.setObjectName(u"label_sq_legend")
+        sizePolicy4.setHeightForWidth(self.label_sq_legend.sizePolicy().hasHeightForWidth())
+        self.label_sq_legend.setSizePolicy(sizePolicy4)
+
+        self.gridLayout.addWidget(self.label_sq_legend, 1, 0, 1, 1)
+
         self.tabWidget.addTab(self.tab, "")
         self.tab_2 = QWidget()
         self.tab_2.setObjectName(u"tab_2")
@@ -365,6 +372,7 @@ class Ui_PPG(object):
         self.groupBox_5.setTitle(QCoreApplication.translate("PPG", u"Info", None))
         self.label_status.setText("")
         self.label.setText("")
+        self.label_sq_legend.setText("")
         self.tabWidget.setTabText(self.tabWidget.indexOf(self.tab), QCoreApplication.translate("PPG", u"Real-Time Plotting of Signals", None))
         self.label_biofeedback.setText("")
         self.label_palette.setText("")

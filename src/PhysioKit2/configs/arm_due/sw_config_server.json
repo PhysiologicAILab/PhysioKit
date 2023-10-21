@@ -1,0 +1,23 @@
+{
+    "acq_params": {
+        "fs": 250.0,
+        "baudrate": 2000000
+    },
+    "exp":{
+        "channel_plot_colors": ["b", "g", "r", "m"]
+    },
+    "external_sync":
+    {
+        "enable": true,
+        "role": "server"
+    },
+    "server":
+    {
+        "tcp_port": 7777
+    },
+    "client":
+    {
+        "server_ip": "123.456.789.10",
+        "tcp_port": 7777
+    }
+}

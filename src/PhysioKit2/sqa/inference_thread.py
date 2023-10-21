@@ -1,15 +1,14 @@
 import os
-import argparse
 import json
 import numpy as np
 import time
 
 import torch
-import matplotlib.pyplot as plt
 from scipy import signal
 from PySide6.QtCore import Signal, QThread, Signal
+from importlib.resources import files
 
-from sqa.model.sqa_ppg import Model as sqPPG
+from PhysioKit2.sqa.model.sqa_ppg import Model as sqPPG
 
 class sqaPPGInference(QThread):
     """
@@ -49,6 +48,7 @@ class sqaPPGInference(QThread):
         self.count_init_window = 0
         self.init_window_filled = False
         self.process_flag = False
+        self.model_loaded = False
 
         if self.nCh == 1:
             self.bvp_vec_1 = np.zeros(self.win_samples)
@@ -59,25 +59,6 @@ class sqaPPGInference(QThread):
             print("Currenly the application only handles 2 PPG channels for signal quality")
             return
 
-        self.sqPPG_model = sqPPG(self.model_config).to(self.device)
-        model_dir = os.path.join("sqa", "ckpt")
-        if os.path.exists(model_dir):
-            ckpt_path = os.path.join(model_dir, self.model_config["ckpt_name"])
-            if os.path.exists(ckpt_path):
-                checkpoint = torch.load(ckpt_path, map_location=self.device)
-                self.sqPPG_model.load_state_dict(checkpoint['model_state_dict'])
-                # optimizer.load_state_dict(checkpoint['optimizer_state_dict'])
-            else:
-                print("No checkpoint found, existing...")
-                # exit()
-                return -1
-        else:
-            print("No checkpoint directory found, existing...")
-            # exit()
-            return -1
-
-        # self.sos = signal.butter(0, (0.5, 5.0), 'bandpass', fs=self.target_fs, output='sos')
-        self.sqPPG_model.eval()
 
     def stop(self):
         self.stop_flag = True
@@ -109,7 +90,25 @@ class sqaPPGInference(QThread):
     def run(self):
 
         while not self.stop_flag:
-            if self.process_flag:
+
+            if not self.model_loaded:
+                self.sqPPG_model = sqPPG(self.model_config).to(self.device)
+                ckpt_path = files('PhysioKit2.sqa.ckpt').joinpath(self.model_config["ckpt_name"])
+                if os.path.exists(ckpt_path):
+                    checkpoint = torch.load(ckpt_path, map_location=self.device)
+                    self.sqPPG_model.load_state_dict(checkpoint['model_state_dict'])
+                    # optimizer.load_state_dict(checkpoint['optimizer_state_dict'])
+                else:
+                    print("No checkpoint found, existing...")
+                    # exit()
+                    return -1
+
+                # self.sos = signal.butter(0, (0.5, 5.0), 'bandpass', fs=self.target_fs, output='sos')
+                self.sqPPG_model.eval()
+                
+                self.model_loaded = True
+
+            elif self.process_flag:
                 self.process_flag = False
 
                 with torch.no_grad():
