@@ -14,53 +14,32 @@ import numpy as np
 import csv
 from datetime import datetime
 
-import numpy as np
 import cv2
 from copy import deepcopy
 
 from PySide6.QtWidgets import QApplication, QWidget, QGraphicsScene, QFileDialog
-from PySide6.QtCore import QFile, QObject, Signal, Qt
+from PySide6.QtCore import QFile, QObject, Signal, QThread
 from PySide6.QtUiTools import QUiLoader
 from PySide6.QtGui import QPixmap, QImage
 
 import warnings
 warnings.filterwarnings("ignore")
 
-global osname
-osname = ''
-try:
-    osname = os.uname().sysname
-except:
-    pass
-
+from matplotlib.backends.backend_qtagg import FigureCanvasQTAgg as FigureCanvas
 from matplotlib.animation import TimedAnimation
+from matplotlib.figure import Figure
+import matplotlib.pyplot as plt
 
-from .utils.plot_helper import FigCanvas, PlotAnimation
 from .utils.data_processing_lib import lFilter, lFilter_moving_average
 from .utils.external_sync import ServerThread, ClientThread
 from .utils.biofeedback_vis import BioFeedback_Thread
 from .utils.devices import serialPort
-from .utils.acquisition_helper import dataAcquisition
+from .utils import config
 from .sqa.inference_thread import sqaPPGInference
-
-
-global live_acquisition_flag, hold_acquisition_thread, nChannels, \
-channel_types, temp_filename, marker_event_status, sampling_rate, csvfile_handle, \
-anim_running
-
-live_acquisition_flag = False
-hold_acquisition_thread = True
-nChannels = 4                   #default
-channel_types = ["eda", "resp", "ppg", "ppg"]
-marker_event_status = False
-sampling_rate = 250             #default
-csvfile_handle = None
-anim_running = False
 
 
 class Server_Sync(QObject):
     record_signal = Signal(bool)
-
 
 
 class physManager(QWidget):
@@ -86,7 +65,6 @@ class physManager(QWidget):
         self.ui.resize(args_parser.width, args_parser.height)
         # self.ui.adjustSize()
 
-        global sampling_rate
         # Default params
         self.ext_sync_flag = False
         self.ui.baudrate = 115200
@@ -96,7 +74,7 @@ class physManager(QWidget):
         self.ppg_lowcut = 0.5
         self.ppg_highcut = 5.0
         self.filt_order = 1
-        self.eda_moving_average_window_size = int(sampling_rate/4.0)
+        self.eda_moving_average_window_size = int(config.SAMPLING_RATE/4.0)
 
         self.ui.spObj = serialPort()
         self.ui.ser_port_names = []
@@ -104,14 +82,13 @@ class physManager(QWidget):
         self.ui.ser_open_status = False
         self.ui.curr_ser_port_name = ''
 
-        global temp_filename, csvfile_handle
         temp_utc_sec = str((datetime.now() - datetime(1970, 1, 1)).total_seconds())
         temp_utc_sec = temp_utc_sec.replace('.', '_') + '_' + str(round(np.random.rand(1)[0], 6)).replace('0.', '')
-        temp_filename = temp_utc_sec + "_temp.csv"
+        config.TEMP_FILENAME = temp_utc_sec + "_temp.csv"
         self.csv_header = ['']
         self.ui.write_eventcode = ''
-        csvfile_handle = open(temp_filename, 'w', encoding="utf", newline="")
-        self.writer = csv.writer(csvfile_handle)
+        config.CSVFILE_HANDLE = open(config.TEMP_FILENAME, 'w', encoding="utf", newline="")
+        self.writer = csv.writer(config.CSVFILE_HANDLE)
 
         sw_config_path = args_parser.config 
         self.ui.sw_config_dict = None
@@ -123,7 +100,7 @@ class physManager(QWidget):
             return
 
         try:
-            sampling_rate = int(self.ui.sw_config_dict["acq_params"]["fs"])
+            config.SAMPLING_RATE = int(self.ui.sw_config_dict["acq_params"]["fs"])
             self.ui.baudrate = int(self.ui.sw_config_dict["acq_params"]["baudrate"])
 
             # External Sync         
@@ -157,11 +134,10 @@ class physManager(QWidget):
         except:
             print("Invalid configuration in SW config file. Please check and start the application again...")
             
-        global osname
         for port, desc, hwid in sorted(self.ui.spObj.ports):
             # print("{}: {} [{}]".format(port, desc, hwid))
             self.ui.ser_ports_desc.append(str(port))
-            if osname == 'Darwin':
+            if config.OS_NAME == 'Darwin':
                 port = port.replace('/dev/cu', '/dev/tty')
             self.ui.ser_port_names.append(port)
 
@@ -197,18 +173,16 @@ class physManager(QWidget):
 
 
     def closeEvent(self, event):
-        global hold_acquisition_thread, temp_filename, csvfile_handle, \
-            live_acquisition_flag, anim_running
-        live_acquisition_flag = False
-        hold_acquisition_thread = False
+        config.LIVE_ACQUISITION_FLAG = False
+        config.HOLD_ACQUISITION_THREAD = False
 
         if self.phys_data_acq_started_flag:
             if self.phys_data_acquisition_thread.isRunning():
                 self.phys_data_acquisition_thread.stop()
 
-        if anim_running:
+        if config.ANIM_RUNNING:
             TimedAnimation._stop(self.myAnim)
-            anim_running = False
+            config.ANIM_RUNNING = False
 
         if self.ui.sq_thread_created:
             if self.ui.sq_inference_thread.isRunning():
@@ -226,11 +200,11 @@ class physManager(QWidget):
                 if self.client_thread.isRunning():
                     self.client_thread.stop()
 
-        if os.path.exists(temp_filename):
-            if not csvfile_handle.closed:
-                csvfile_handle.close()
+        if os.path.exists(config.TEMP_FILENAME):
+            if not config.CSVFILE_HANDLE.closed:
+                config.CSVFILE_HANDLE.close()
             time.sleep(0.2)
-            os.remove(temp_filename)
+            os.remove(config.TEMP_FILENAME)
 
 
     def update_exp_condition(self):
@@ -270,8 +244,6 @@ class physManager(QWidget):
 
 
     def load_exp_params(self):
-
-        global nChannels, sampling_rate, channel_types
         
         fname = QFileDialog.getOpenFileName(filter='*.json')[0]
         self.ui.label_params_file.setText(os.path.basename(fname))
@@ -316,7 +288,7 @@ class physManager(QWidget):
             if self.ui.biofeedback_enable:
                 self.ui.tabWidget.setCurrentIndex(1)
                 self.ui.biofeedback_thread = BioFeedback_Thread(
-                    sampling_rate, self.ui.bf_win, self.ui.bf_step, self.ui.bf_opt, self.ui.bf_metric, parent=self)
+                    config.SAMPLING_RATE, self.ui.bf_win, self.ui.bf_step, self.ui.bf_opt, self.ui.bf_metric, parent=self)
                 if self.ui.bf_opt == "size":
                     self.ui.biofeedback_thread.update_bf_size.connect(self.update_bf_visualization_size)
                 else:
@@ -362,44 +334,49 @@ class physManager(QWidget):
             self.ui.listWidget_expConditions.setCurrentRow(0)
 
             self.ui.channels = self.ui.params_dict["exp"]["channels"]
-            nChannels = len(self.ui.channels)
+            config.NCHANNELS = len(self.ui.channels)
             self.ui.channel_types = self.ui.params_dict["exp"]["channel_types"]
-            channel_types = self.ui.channel_types
-            self.ui.channel_plot_colors = self.ui.sw_config_dict["exp"]["channel_plot_colors"][:nChannels]
+            config.CHANNEL_TYPES = self.ui.channel_types
+            self.ui.channel_plot_colors = self.ui.sw_config_dict["exp"]["channel_plot_colors"][:config.NCHANNELS]
             self.csv_header = self.ui.channels + ["event_code"]
             self.writer.writerow(self.csv_header)
 
             self.filt_objs = {}
-            self.eda_moving_average_window_size = int(sampling_rate/4.0)
+            self.eda_moving_average_window_size = int(config.SAMPLING_RATE/4.0)
 
-            for nCh in range(nChannels):
+            for nCh in range(config.NCHANNELS):
                 if self.ui.channel_types[nCh] == 'eda':
                     self.filt_objs[str(nCh)] = lFilter_moving_average(window_size=self.eda_moving_average_window_size)
                 elif self.ui.channel_types[nCh] == 'resp':
-                    self.filt_objs[str(nCh)] = lFilter(self.resp_lowcut, self.resp_highcut, sampling_rate, order=self.filt_order)
+                    self.filt_objs[str(nCh)] = lFilter(self.resp_lowcut, self.resp_highcut, config.SAMPLING_RATE, order=self.filt_order)
                 elif self.ui.channel_types[nCh] == 'ppg':
-                    self.filt_objs[str(nCh)] = lFilter(self.ppg_lowcut, self.ppg_highcut, sampling_rate, order=self.filt_order)
+                    self.filt_objs[str(nCh)] = lFilter(self.ppg_lowcut, self.ppg_highcut, config.SAMPLING_RATE, order=self.filt_order)
 
             # # Place the matplotlib figure
             gv_rect = self.ui.graphicsView.viewport().rect()
             gv_width = gv_rect.width()
             gv_height = gv_rect.height()
-            self.figCanvas = FigCanvas(channels = self.ui.channels, ch_colors = self.ui.channel_plot_colors, width=gv_width, height=gv_height)
-            self.myAnim = PlotAnimation(figCanvas=self.figCanvas)
+            self.figCanvas = FigCanvas(sampling_rate=config.SAMPLING_RATE,
+                                       channels = self.ui.channels, 
+                                       channel_types = config.CHANNEL_TYPES,
+                                       ch_colors = self.ui.channel_plot_colors, 
+                                       sq_flag = self.ui.params_dict["exp"]["assess_signal_quality"], 
+                                       width = gv_width, height = gv_height)
+            self.myAnim = PlotAnimation(config=config, figCanvas=self.figCanvas)
             self.graphic_scene = QGraphicsScene()
             self.graphic_scene.addWidget(self.figCanvas)
             self.ui.graphicsView.setScene(self.graphic_scene)
             self.ui.graphicsView.show()
 
-            if "ppg" in channel_types and self.ui.params_dict["exp"]["assess_signal_quality"]:
+            if "ppg" in config.CHANNEL_TYPES and self.ui.params_dict["exp"]["assess_signal_quality"]:
                 sq_legend_image = files('PhysioKit2.images').joinpath('sq_indication.png')
                 pixmap = QPixmap(sq_legend_image)
                 self.ui.label_sq_legend.setPixmap(pixmap)                
                 self.sqa_config = files('PhysioKit2.sqa.config').joinpath('sqa_ppg.json')
-                self.ui.ppg_sq_indices = list(np.where(np.array(channel_types) == "ppg")[0])
+                self.ui.ppg_sq_indices = list(np.where(np.array(config.CHANNEL_TYPES) == "ppg")[0])
                 num_sq_ch = len(self.ui.ppg_sq_indices)
                 self.ui.sq_inference_thread = sqaPPGInference(
-                    self.sqa_config, sampling_rate, num_sq_ch, axis=1, parent=self)
+                    self.sqa_config, config.SAMPLING_RATE, num_sq_ch, axis=1, parent=self)
                 self.ui.sq_inference_thread.update_sq_vec.connect(self.myAnim.addSQData)
                 self.ui.sq_thread_created = True
 
@@ -423,18 +400,17 @@ class physManager(QWidget):
 
     
     def stop_record_process(self):
-        global temp_filename, marker_event_status, csvfile_handle
 
         self.ui.pushButton_record_data.setEnabled(False)
-        if not csvfile_handle.closed:
+        if not config.CSVFILE_HANDLE.closed:
             time.sleep(0.5)
-            csvfile_handle.close()
+            config.CSVFILE_HANDLE.close()
             time.sleep(0.5)
         self.save_file_path = os.path.join(self.ui.data_root_dir, self.ui.pid + "_" +
                                            self.ui.curr_exp_name + '_' + self.ui.curr_exp_condition + '_' + 
                                            self.ui.utc_sec + '_' + str(round(np.random.rand(1)[0], 6)).replace('0.', '') + '.csv')
-        if os.path.exists(temp_filename):
-            shutil.move(temp_filename, self.save_file_path)
+        if os.path.exists(config.TEMP_FILENAME):
+            shutil.move(config.TEMP_FILENAME, self.save_file_path)
             self.ui.label_status.setText("Recording stopped and data saved for: Exp - " + self.ui.curr_exp_name + "; Condition - " + self.ui.curr_exp_condition)
             time.sleep(0.5)
         else:
@@ -444,13 +420,13 @@ class physManager(QWidget):
         self.ui.comboBox_event.setEnabled(False)
         self.ui.pushButton_Event.setEnabled(False)
 
-        if marker_event_status:
-            marker_event_status = False
+        if config.MARKER_EVENT_STATUS:
+            config.MARKER_EVENT_STATUS = False
             self.myAnim.event_toggle = True
 
         # prepare for next recording
-        csvfile_handle = open(temp_filename, 'w', encoding="utf", newline="")
-        self.writer = csv.writer(csvfile_handle)
+        config.CSVFILE_HANDLE = open(config.TEMP_FILENAME, 'w', encoding="utf", newline="")
+        self.writer = csv.writer(config.CSVFILE_HANDLE)
         self.writer.writerow(self.csv_header)
         self.ui.pushButton_record_data.setEnabled(True)
 
@@ -467,14 +443,13 @@ class physManager(QWidget):
             self.ui.eventcode = 0
 
     def toggle_marking(self):
-        global marker_event_status
         self.myAnim.event_toggle = True
-        if not marker_event_status:
-            marker_event_status = True
+        if not config.MARKER_EVENT_STATUS:
+            config.MARKER_EVENT_STATUS = True
             self.ui.write_eventcode = self.ui.eventcode
             self.ui.pushButton_Event.setText("Stop Marking")
         else:
-            marker_event_status = False
+            config.MARKER_EVENT_STATUS = False
             self.ui.write_eventcode = ''
             self.ui.pushButton_Event.setText("Start Marking")
 
@@ -504,14 +479,13 @@ class physManager(QWidget):
 
 
     def start_acquisition(self):
-        global live_acquisition_flag, temp_filename, csvfile_handle
-        if not live_acquisition_flag:
-            live_acquisition_flag = True
+        if not config.LIVE_ACQUISITION_FLAG:
+            config.LIVE_ACQUISITION_FLAG = True
             if not self.phys_data_acq_started_flag:
                 # self.phys_data_acquisition_thread = threading.Thread(name='phys_data_acquisition', target=self.phys_data_acquisition, daemon=True)
                 # self.phys_data_acquisition_thread.start()
 
-                self.phys_data_acquisition_thread = dataAcquisition(self.ui)
+                self.phys_data_acquisition_thread = dataAcquisition(self.ui, parent=self)
                 self.phys_data_acquisition_thread.data_signal.connect(self.csvWrite_function)
                 self.phys_data_acquisition_thread.data_signal_filt.connect(self.myAnim.addData)
                 self.phys_data_acquisition_thread.time_signal.connect(self.update_time_elapsed)
@@ -545,16 +519,16 @@ class physManager(QWidget):
             # To reset the graph and clear the values
             
             self.myAnim.reset_draw()
-            if os.path.exists(temp_filename):
-                if not csvfile_handle.closed:
-                    csvfile_handle.close()
-                os.remove(temp_filename)
+            if os.path.exists(config.TEMP_FILENAME):
+                if not config.CSVFILE_HANDLE.closed:
+                    config.CSVFILE_HANDLE.close()
+                os.remove(config.TEMP_FILENAME)
 
-            csvfile_handle = open(temp_filename, 'w', encoding="utf", newline="")
-            self.writer = csv.writer(csvfile_handle)
+            config.CSVFILE_HANDLE = open(config.TEMP_FILENAME, 'w', encoding="utf", newline="")
+            self.writer = csv.writer(config.CSVFILE_HANDLE)
             self.writer.writerow(self.csv_header)
 
-            live_acquisition_flag = False
+            config.LIVE_ACQUISITION_FLAG = False
             self.ui.pushButton_record_data.setEnabled(False)
             self.ui.pushButton_start_live_acquisition.setText('Start Live Acquisition')
 
@@ -565,11 +539,9 @@ class physManager(QWidget):
         sync_comm = Server_Sync()
         sync_comm.record_signal.connect(self.start_recording)
 
-        global temp_filename, csvfile_handle
-
-        if not os.path.exists(temp_filename):
-            csvfile_handle = open(temp_filename, 'w', encoding="utf", newline="")
-            self.writer = csv.writer(csvfile_handle)
+        if not os.path.exists(config.TEMP_FILENAME):
+            config.CSVFILE_HANDLE = open(config.TEMP_FILENAME, 'w', encoding="utf", newline="")
+            self.writer = csv.writer(config.CSVFILE_HANDLE)
             self.writer.writerow(self.csv_header)
 
         sync_signal = False
@@ -586,7 +558,6 @@ class physManager(QWidget):
 
 
     def start_recording(self, start_signal):
-        global marker_event_status
         if start_signal:
             self.ui.record_start_time = datetime.now()
             self.ui.data_record_flag = True
@@ -604,7 +575,7 @@ class physManager(QWidget):
 
             self.ui.comboBox_event.setEnabled(True)
             self.ui.pushButton_Event.setEnabled(True)
-            marker_event_status = False
+            config.MARKER_EVENT_STATUS = False
 
             try:
                 self.ui.eventcode = self.ui.event_codes[self.ui.comboBox_event.currentIndex]
@@ -661,9 +632,298 @@ class physManager(QWidget):
 
 
 
+class dataAcquisition(QThread):
+    """
+        The class to handle incoming data stream from Arduino
+    """
+    data_signal = Signal(list)
+    data_signal_filt = Signal(list)
+    sq_signal = Signal(list)
+    bf_signal = Signal(float)
+    time_signal = Signal(int)
+    log_signal = Signal(str)
+    stop_signal = Signal(bool)
+
+    def __init__(self, uiObj, parent):
+        super(dataAcquisition, self).__init__(parent=parent)
+
+        self.ui = uiObj
+        self.stop_flag = False
+
+
+    def stop(self):
+        self.stop_flag = True
+        self.terminate()
+        print("Data acquisition thread terminated...")
+
+
+    def run(self):
+        
+        if self.ui.biofeedback_enable:
+            self.bf_signal.connect(self.ui.biofeedback_thread.add_bf_data)
+
+        value = []
+        value_filt = []
+        buffersize = (config.NCHANNELS)*4*bytes.__sizeof__(bytes()) + 2*bytes.__sizeof__(bytes())    #4 sensor unsigned int and 1 tsVal unsigned long => 5 * 4 bytes + 2 bytes for \r\n
+        prev_elapsed_time = 0
+        curr_elapsed_time = 0
+
+        while not self.stop_flag:
+            if config.LIVE_ACQUISITION_FLAG and self.ui.spObj.ser.is_open:
+                #Read data from serial port
+                try:
+                    serial_data = self.ui.spObj.ser.readline(buffersize)
+                    serial_data = serial_data.split(b'\r\n')
+                    serial_data = serial_data[0].split(b',')
+                    #print(serial_data)
+                except:
+                    serial_data = []
+                    print('Serial port not open')
+                    time.sleep(0.1)
+
+                try:
+                    value = []
+                    value_filt = []
+                    for nCh in range(config.NCHANNELS):
+                        serial_val = int(serial_data[nCh])
+                        value.append(serial_val)
+                        value_filt.append(self.filt_objs[str(nCh)].lfilt(serial_val))
+
+                    # serial_val = int(serial_data[config.NCHANNELS])
+                    # value.append(serial_val)
+
+                    if self.ui.data_record_flag:
+                        elapsed_time = (datetime.now() - self.ui.record_start_time).total_seconds()*1000
+                        if self.ui.timed_acquisition:
+                            if (elapsed_time >= self.ui.curr_acquisition_time_ms):
+                                self.ui.data_record_flag = False
+                                self.stop_signal.emit(True)
+                                prev_elapsed_time = 0
+                                curr_elapsed_time = 0
+                                
+                            else:
+                                self.data_signal.emit(value)
+                                curr_elapsed_time = int(round(elapsed_time/1000.0, 0))
+                                if prev_elapsed_time < curr_elapsed_time:
+                                    prev_elapsed_time = curr_elapsed_time
+                                    self.time_signal.emit(curr_elapsed_time)
+
+                        else:
+                            self.data_signal.emit(value)
+
+                            curr_elapsed_time = int(round(elapsed_time/1000.0, 0))
+                            if prev_elapsed_time < curr_elapsed_time:
+                                prev_elapsed_time = curr_elapsed_time
+                                self.time_signal.emit(curr_elapsed_time)
+                    else:
+                        prev_elapsed_time = 0
+                        curr_elapsed_time = 0
+
+                    self.data_signal_filt.emit(value_filt)
+                    if "ppg" in config.CHANNEL_TYPES:
+                        filt_val = []
+                        for idx in self.ui.ppg_sq_indices:
+                            filt_val.append(value_filt[idx])
+                        self.sq_signal.emit(filt_val)
+                    if self.ui.biofeedback_enable:
+                        self.bf_signal.emit(value_filt[self.ui.bf_ch_index])
+
+                    time.sleep(0.001)
+
+                except:
+                    try:
+                        assert len(serial_data) == (config.NCHANNELS)  #data channels + time_stamp
+                        print('error in reading data', serial_data)
+                        time.sleep(0.1)
+                    except:
+                        print('Mismatch in the number of channels specified in JSON file and the serial data received from Arduino or microcontroller')
+                        time.sleep(0.1)
+
+            else:
+                if self.ui.data_record_flag:
+                     self.log_signal.emit("Data not recording. Check serial port connection and retry...")
+                if not config.HOLD_ACQUISITION_THREAD:
+                    break
+                else:
+                    time.sleep(1)
+
+
+
+class FigCanvas(FigureCanvas):
+    def __init__(self, sampling_rate, channels, channel_types, ch_colors, sq_flag, parent=None, width=13.8, height=7.5, dpi=100):
+        
+        self.max_plot_time = 10 # 30 second time window
+        self.max_plot_channels = 4
+        self.nChannels = len(channels)
+        self.nChannels = min(self.nChannels, self.max_plot_channels)  #maximum number of channels for plaotting = 4
+        self.channel_types = channel_types[:self.nChannels]
+        self.x_axis = np.linspace(0, self.max_plot_time, self.max_plot_time*sampling_rate)
+
+        self.plot_signals = []
+        self.axs = {}
+        self.lines = {}
+
+        self.sq_flag = sq_flag
+        if self.sq_flag:
+            self.sq_vecs = []
+            self.sq_images = {}
+        width = width/dpi
+        height = height/dpi
+
+        self.fig = Figure(figsize=(width, height), dpi=dpi, tight_layout=True)
+        # self.fig = Figure(constrained_layout=True)
+
+        for nCh in range(self.nChannels):
+            self.plot_signals.append(10 * np.ones(self.max_plot_time * sampling_rate))
+    
+            # if self.sq_flag and self.channel_types[nCh] == "ppg":
+            if self.sq_flag:
+                self.sq_vecs.append(0.5 * np.ones((1, self.max_plot_time * 2))) # 1/0.5 as 0.5 is sq_resolution. 
+
+            if self.nChannels == self.max_plot_channels:
+                self.axs[str(nCh)] = self.fig.add_subplot(2, 2, nCh+1)
+            else:
+                self.axs[str(nCh)] = self.fig.add_subplot(self.nChannels, 1, nCh+1)
+
+            (self.lines[str(nCh)],) = self.axs[str(nCh)].plot(self.x_axis, self.plot_signals[nCh], ch_colors[nCh], markersize=10, linestyle='solid')
+            
+            if self.sq_flag and self.channel_types[nCh] == "ppg":
+                self.sq_images[str(nCh)] = self.axs[str(nCh)].imshow(
+                    self.sq_vecs[nCh], clim=(0,1), cmap=plt.cm.RdYlGn, aspect='auto', alpha=0.5, extent=(0, self.max_plot_time, 0, 1)
+                    )
+            self.axs[str(nCh)].set_xlabel('Time (seconds)', fontsize=16)
+            self.axs[str(nCh)].set_ylabel(channels[nCh], fontsize=16)
+            self.axs[str(nCh)].set_xlim(0, self.max_plot_time)
+            self.axs[str(nCh)].set_ylim(0, 1)
+            self.axs[str(nCh)].yaxis.set_ticks_position('left')
+            self.axs[str(nCh)].xaxis.set_ticks_position('bottom')
+
+        super(FigCanvas, self).__init__(self.fig)
+
+
+
+class PlotAnimation(TimedAnimation):
+    def __init__(self, figCanvas: FigureCanvas, interval: int = 40) -> None:
+        self.fig = figCanvas.fig
+        self.sq_flag = figCanvas.sq_flag
+        self.nChannels = figCanvas.nChannels
+        self.channel_types = figCanvas.channel_types
+
+        self.exception_count = 0
+        self.ppg_sq_indices = list(np.where(np.array(self.channel_types) == "ppg")[0])
+
+        self.max_plot_time = 10 # 30 second time window
+        self.event_toggle = False
+        self.measure_time = 0.2  # moving max_plot_time sample by 0.2 sec.
+        self.max_frames_for_relimiting_axis = self.measure_time * config.SAMPLING_RATE
+
+        self.count_frame = 0
+        self.plot_signals = figCanvas.plot_signals
+        self.sq_vecs = figCanvas.sq_vecs
+        self.axs = figCanvas.axs
+        self.lines = figCanvas.lines
+        self.sq_images = figCanvas.sq_images
+        config.ANIM_RUNNING = True
+
+        super(PlotAnimation, self).__init__(self.fig, interval, blit=True)
+
+
+    def new_frame_seq(self):
+        return iter(range(int(self.max_plot_time * config.SAMPLING_RATE)))
+
+
+    def _init_draw(self):
+        lines = []
+        sq_images = []
+        for nCh in range(self.nChannels):
+            lines.append(self.lines[str(nCh)])
+            if self.channel_types[nCh] == "ppg":
+                sq_images.append(self.sq_images[str(nCh)])
+        lines = tuple(lines)
+        sq_images = tuple(sq_images)
+        return (lines, sq_images)
+
+
+    def reset_draw(self):
+        self.count_frame = 0 # self.max_plot_time * config.SAMPLING_RATE
+        return
+
+    def addSQData(self, value):
+        for indx in range(len(self.ppg_sq_indices)):
+            self.sq_vecs[self.ppg_sq_indices[indx]] = 1 - value[indx]
+            # print(1 - value[indx])
+        return
+
+    def addData(self, value):
+        self.count_frame += 1
+        for nCh in range(self.nChannels):
+            self.plot_signals[nCh] = np.roll(self.plot_signals[nCh], -1)
+            self.plot_signals[nCh][-1] = value[nCh]
+        return
+
+
+    def _step(self, *args):
+        # Extends the _step() method for the TimedAnimation class.
+        try:
+            TimedAnimation._step(self, *args)
+        except Exception as e:
+            self.exception_count += 1
+            print("Plot exception count:", str(self.exception_count))
+            TimedAnimation._stop(self)
+            pass
+        return
+
+
+    def _draw_frame(self, framedata):
+
+        if config.LIVE_ACQUISITION_FLAG:   
+
+            if self.count_frame >= self.max_frames_for_relimiting_axis:
+                self.count_frame = 0
+                # for nCh in range(self.nChannels):
+                #     mx = np.max(self.plot_signals[nCh])
+                #     mn = np.min(self.plot_signals[nCh])
+                #     self.plot_signals[nCh] = (self.plot_signals[nCh] - mn)/(mx - mn)
+                #     # self.axs[str(nCh)].set_ylim(np.min(self.plot_signals[nCh]), np.max(self.plot_signals[nCh]))
+
+                self._drawn_artists = []
+                for nCh in range(self.nChannels):
+                    mx = np.max(self.plot_signals[nCh])
+                    mn = np.min(self.plot_signals[nCh])
+                    sig = (self.plot_signals[nCh] - mn)/(mx - mn)
+                    self.lines[str(nCh)].set_ydata(sig)
+                    if self.sq_flag and self.channel_types[nCh] == "ppg":
+                        self.sq_images[str(nCh)].set_data(self.sq_vecs[nCh])
+                        self._drawn_artists.append(self.sq_images[str(nCh)])
+                    self._drawn_artists.append(self.lines[str(nCh)])
+
+            if self.event_toggle:
+                if config.MARKER_EVENT_STATUS:
+                    for nCh in range(self.nChannels):
+                        self.lines[str(nCh)].set_linestyle((0, (5, 5)))
+                else:
+                    for nCh in range(self.nChannels):
+                        self.lines[str(nCh)].set_linestyle((0, ()))
+                self.event_toggle = False
+
+            # self._drawn_artists = []
+            # for nCh in range(self.nChannels):
+            #     mx = np.max(self.plot_signals[nCh])
+            #     mn = np.min(self.plot_signals[nCh])
+            #     sig = (self.plot_signals[nCh] - mn)/(mx - mn)
+            #     self.lines[str(nCh)].set_ydata(sig)
+            #     if self.sq_flag and self.channel_types[nCh] == "ppg":
+            #         self.sq_images[str(nCh)].set_data(self.sq_vecs[nCh])
+            #         self._drawn_artists.append(self.sq_images[str(nCh)])
+            #     self._drawn_artists.append(self.lines[str(nCh)])
+        return
+
+
+
+
 
 def main(app, args_parser):
-    if osname == 'Darwin':
+    if config.OS_NAME == 'Darwin':
         app.setStyle('Fusion')
     
     widget = physManager(args_parser)
