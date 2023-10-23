@@ -802,7 +802,7 @@ class FigCanvas(FigureCanvas):
 
 
 class PlotAnimation(TimedAnimation):
-    def __init__(self, figCanvas: FigureCanvas, interval: int = 200) -> None:
+    def __init__(self, figCanvas: FigureCanvas, interval: int = 20) -> None:
         self.fig = figCanvas.fig
         self.sq_flag = figCanvas.sq_flag
         self.nChannels = figCanvas.nChannels
@@ -892,7 +892,7 @@ class PlotAnimation(TimedAnimation):
                     for nCh in range(self.nChannels):
                         self.lines[str(nCh)].set_linestyle((0, ()))
                 self.event_toggle = False
-
+        
         return
 
 
