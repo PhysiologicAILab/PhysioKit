@@ -802,7 +802,7 @@ class FigCanvas(FigureCanvas):
 
 
 class PlotAnimation(TimedAnimation):
-    def __init__(self, figCanvas: FigureCanvas, interval: int = 40) -> None:
+    def __init__(self, figCanvas: FigureCanvas, interval: int = 200) -> None:
         self.fig = figCanvas.fig
         self.sq_flag = figCanvas.sq_flag
         self.nChannels = figCanvas.nChannels
@@ -813,10 +813,7 @@ class PlotAnimation(TimedAnimation):
 
         self.max_plot_time = 10 # 30 second time window
         self.event_toggle = False
-        self.measure_time = 0.2  # moving max_plot_time sample by 0.2 sec.
-        self.max_frames_for_relimiting_axis = self.measure_time * config.SAMPLING_RATE
 
-        self.count_frame = 0
         self.plot_signals = figCanvas.plot_signals
         self.sq_vecs = figCanvas.sq_vecs
         self.axs = figCanvas.axs
@@ -844,7 +841,7 @@ class PlotAnimation(TimedAnimation):
 
 
     def reset_draw(self):
-        self.count_frame = 0 # self.max_plot_time * config.SAMPLING_RATE
+        pass # self.count_frame = 0 # self.max_plot_time * config.SAMPLING_RATE
         return
 
     def addSQData(self, value):
@@ -854,7 +851,6 @@ class PlotAnimation(TimedAnimation):
         return
 
     def addData(self, value):
-        self.count_frame += 1
         for nCh in range(self.nChannels):
             self.plot_signals[nCh] = np.roll(self.plot_signals[nCh], -1)
             self.plot_signals[nCh][-1] = value[nCh]
@@ -877,24 +873,16 @@ class PlotAnimation(TimedAnimation):
 
         if config.LIVE_ACQUISITION_FLAG:   
 
-            if self.count_frame >= self.max_frames_for_relimiting_axis:
-                self.count_frame = 0
-                # for nCh in range(self.nChannels):
-                #     mx = np.max(self.plot_signals[nCh])
-                #     mn = np.min(self.plot_signals[nCh])
-                #     self.plot_signals[nCh] = (self.plot_signals[nCh] - mn)/(mx - mn)
-                #     # self.axs[str(nCh)].set_ylim(np.min(self.plot_signals[nCh]), np.max(self.plot_signals[nCh]))
-
-                self._drawn_artists = []
-                for nCh in range(self.nChannels):
-                    mx = np.max(self.plot_signals[nCh])
-                    mn = np.min(self.plot_signals[nCh])
-                    sig = (self.plot_signals[nCh] - mn)/(mx - mn)
-                    self.lines[str(nCh)].set_ydata(sig)
-                    if self.sq_flag and self.channel_types[nCh] == "ppg":
-                        self.sq_images[str(nCh)].set_data(self.sq_vecs[nCh])
-                        self._drawn_artists.append(self.sq_images[str(nCh)])
-                    self._drawn_artists.append(self.lines[str(nCh)])
+            self._drawn_artists = []
+            for nCh in range(self.nChannels):
+                mx = np.max(self.plot_signals[nCh])
+                mn = np.min(self.plot_signals[nCh])
+                sig = (self.plot_signals[nCh] - mn)/(mx - mn)
+                self.lines[str(nCh)].set_ydata(sig)
+                if self.sq_flag and self.channel_types[nCh] == "ppg":
+                    self.sq_images[str(nCh)].set_data(self.sq_vecs[nCh])
+                    self._drawn_artists.append(self.sq_images[str(nCh)])
+                self._drawn_artists.append(self.lines[str(nCh)])
 
             if self.event_toggle:
                 if config.MARKER_EVENT_STATUS:
@@ -905,18 +893,7 @@ class PlotAnimation(TimedAnimation):
                         self.lines[str(nCh)].set_linestyle((0, ()))
                 self.event_toggle = False
 
-            # self._drawn_artists = []
-            # for nCh in range(self.nChannels):
-            #     mx = np.max(self.plot_signals[nCh])
-            #     mn = np.min(self.plot_signals[nCh])
-            #     sig = (self.plot_signals[nCh] - mn)/(mx - mn)
-            #     self.lines[str(nCh)].set_ydata(sig)
-            #     if self.sq_flag and self.channel_types[nCh] == "ppg":
-            #         self.sq_images[str(nCh)].set_data(self.sq_vecs[nCh])
-            #         self._drawn_artists.append(self.sq_images[str(nCh)])
-            #     self._drawn_artists.append(self.lines[str(nCh)])
         return
-
 
 
 

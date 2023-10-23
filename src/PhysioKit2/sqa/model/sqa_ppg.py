@@ -263,9 +263,10 @@ class Model(nn.Module):
         self.maxpool1d  = nn.MaxPool1d(kernel_size=2,stride=2)
 
         C = model_config["model_params"]["MD_D"]        
-        self.squeeze = ConvBNReLU(filter_size * ((2 ** 3) + (2**2) + (2**1)), C, 3, 2)
+        self.squeeze = ConvBNReLU(filter_size * ((2**3) + (2**2)), C, 3, 1)
         self.hamburger = HamburgerV2(C, model_config)
-        self.seg_out = ConvBNReLU(C, 1, 1, act="sigmoid", apply_bn=False)
+        self.align = ConvBNReLU(C, 1, 1)
+        self.seg_out = nn.Conv1d(in_channels=1,out_channels=1,kernel_size=1)
 
 
     def forward(self, x):
@@ -273,20 +274,21 @@ class Model(nn.Module):
         x = self.maxpool1d(x)
       
         x = self.depthwise_separable_conv_2(x)
+        x = self.maxpool1d(x)
+      
+        x = self.depthwise_separable_conv_3(x)
         x1 = self.maxpool1d(x)
       
-        x = self.depthwise_separable_conv_3(x1)
-        x2 = self.maxpool1d(x)
-      
-        x = self.depthwise_separable_conv_4(x2)
+        x = self.depthwise_separable_conv_4(x1)
+        x = self.maxpool1d(x)
 
         x1 = self.maxpool1d(x1)
-        x = torch.concat([x, x2, x1], dim=1)
+        x = torch.concat([x, x1], dim=1)
         x = self.squeeze(x)
-
         x = self.hamburger(x)
-
+        x = self.align(x)
         x = self.seg_out(x)
+        x = F.sigmoid(x)
    
         return x
 

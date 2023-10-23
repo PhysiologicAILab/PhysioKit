@@ -15,7 +15,7 @@
         "INPUT_CHANNELS": 1,
         "MD_S": 1,
         "MD_D": 20,
-        "MD_R": 20,
+        "MD_R": 10,
         "TRAIN_STEPS": 6,
         "EVAL_STEPS": 6,
         "INV_T": 1,
