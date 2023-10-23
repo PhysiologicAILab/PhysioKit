@@ -1,4 +1,5 @@
 import os
+import sys
 os.environ["PYSIDE_DESIGNER_PLUGINS"] = '.'
 os.environ["QT_LOGGING_RULES"]='*.debug=false;qt.pysideplugin=false'
 import argparse
@@ -920,18 +921,7 @@ class PlotAnimation(TimedAnimation):
 
 
 
-def main(app, args_parser):
-    if config.OS_NAME == 'Darwin':
-        app.setStyle('Fusion')
-    
-    widget = physManager(args_parser)
-    widget.show()
-    ret = app.exec()
-
-    # sys.exit(ret)
-    return
-
-if __name__ == '__main__':
+def main(argv=sys.argv):
 
     # Create the application instance.
     app = QApplication([])
@@ -946,7 +936,21 @@ if __name__ == '__main__':
     parser.add_argument('--width', default=width, dest="width", type=int)
     parser.add_argument('--height', default=height, dest="height", type=int)
 
+    # args = parser.parse_args(argv[1:])
+
     parser.add_argument('REMAIN', nargs='*')
     args_parser = parser.parse_args()
 
-    main(app, args_parser)
+
+    if config.OS_NAME == 'Darwin':
+        app.setStyle('Fusion')
+    
+    widget = physManager(args_parser)
+    widget.show()
+    ret = app.exec()
+
+    # sys.exit(ret)
+    return
+
+if __name__ == '__main__':
+    main()

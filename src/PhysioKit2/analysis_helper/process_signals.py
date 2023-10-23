@@ -1,4 +1,5 @@
 import os
+import sys
 from copy import deepcopy
 import numpy as np
 from scipy import signal
@@ -405,7 +406,7 @@ class Process_Signals(object):
                         self.analysis_dict_nk[pid][cond] = {}
 
                         fn = os.path.join(self.datapath, pid, val["path"])
-                        _, _, ppg1, ppg2, _, _ = load_csv_data_all(fn)
+                        _, _, ppg1, ppg2, _ = load_csv_data_all(fn)
 
                         print("Processing: ", pid, cond)
                         # PPG1
@@ -629,8 +630,17 @@ class Process_Signals(object):
 
 
 
-def main(args_parser):
+def main(argv=sys.argv):
     
+    parser = argparse.ArgumentParser()
+    parser.add_argument('--config', type=str, dest='config', help='Config file for experiment')
+    parser.add_argument('--opt', type=str, dest='opt', help='0 - process signals/  1 - make data tables', default="0")
+    parser.add_argument('--datapath', type=str, dest='datapath', help='Root directory for data', default="data")
+    parser.add_argument('--savepath', type=str, dest='savepath', help='Destination directory for saving analysis outcome', default="analysis")
+    parser.add_argument('--datadict', type=str, dest='datadict', help='Filepath for data dictionary', default="")
+    parser.add_argument('REMAIN', nargs='*')
+    args_parser = parser.parse_args()
+
     Process_Signals_obj = Process_Signals(args_parser.config, args_parser.datapath, args_parser.savepath, args_parser.datadict)
     
     if Process_Signals_obj.status:
@@ -644,15 +654,5 @@ def main(args_parser):
 
 
 if __name__ == "__main__":
-
-    parser = argparse.ArgumentParser()
-    parser.add_argument('--config', type=str, dest='config', help='Config file for experiment')
-    parser.add_argument('--opt', type=str, dest='opt', help='0 - process signals/  1 - make data tables', default="0")
-    parser.add_argument('--datapath', type=str, dest='datapath', help='Root directory for data', default="data")
-    parser.add_argument('--savepath', type=str, dest='savepath', help='Destination directory for saving analysis outcome', default="analysis")
-    parser.add_argument('--datadict', type=str, dest='datadict', help='Filepath for data dictionary', default="")
-    parser.add_argument('REMAIN', nargs='*')
-    args_parser = parser.parse_args()
-
-    main(args_parser=args_parser)
+    main()
 

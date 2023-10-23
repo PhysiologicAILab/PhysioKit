@@ -6,7 +6,7 @@ Sample data and corresponding exp_config.json file is provided to illustrate how
 ### Step-2: Batch processing to compute metrics from PPG and EDA signals:
 
 ``` bash
-python -m PhysioKit2.analysis_helper.process_signals --config analysis_helper/exp_config.json --datapath analysis_helper sample_data --opt 0
+physiokit_analyze --config exp_config.json --datapath sample_data --opt 0
 ```
 
 ### Step-3: Saving and exporting data-tables
@@ -16,5 +16,5 @@ Following command is to illustrate the use when a specific window size and step 
 Please specify the appropriate path for "analysis_dict_nk.npy" - as it would have been saved after executing the "Step-1".
 
 ``` bash
-python -m PhysioKit2.analysis_helper.process_signals --config analysis_helper/exp_config.json --datadict analysis/W120_S5__OptPPG/analysis_dict_nk.npy --opt 1
+physiokit_analyze --config exp_config.json --datadict analysis/W120_S5__OptPPG/analysis_dict_nk.npy --opt 1
 ```

@@ -68,9 +68,9 @@ Before launching the interface, ensure that the Arduino board is connected to th
 
 To launch the interface, run the following command in the terminal:
 ``` bash
-python -m PhysioKit2.main --config <path of config file>
+physiokit --config <path of config file>
 see example below 
-python -m PhysioKit2.main --config configs/avr_default/sw_config.json
+physiokit --config configs/avr_default/sw_config.json
 ```
 
 This shall open user interface, basic functioning of which is shown in this demo. Please note that if secondary screen is connected, the interface uses it to adjust its resolution, however it may have to be moved to the secondary screen if it got launched on the primary.
