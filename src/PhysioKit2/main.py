@@ -33,7 +33,7 @@ import matplotlib.pyplot as plt
 
 from .utils.data_processing_lib import lFilter, lFilter_moving_average
 from .utils.external_sync import ServerThread, ClientThread
-from .utils.biofeedback_vis import BioFeedback_Thread
+from .utils.biofeedback import BioFeedback_Thread
 from .utils.devices import serialPort
 from .utils import config
 from .sqa.inference_thread import sqaPPGInference
@@ -268,53 +268,6 @@ class physManager(QWidget):
             self.ui.comboBox_event.addItems(self.ui.event_codes)
             self.ui.eventcode = self.ui.event_codes[0]
 
-            if "biofeedback" in self.ui.params_dict:
-                if bool(self.ui.params_dict["biofeedback"]["enabled"]):
-                    self.ui.biofeedback_enable = True
-                    self.ui.bf_win = float(self.ui.params_dict["biofeedback"]["visual_feedback"]["window"])
-                    self.ui.bf_step = float(self.ui.params_dict["biofeedback"]["visual_feedback"]["step"])
-                    self.ui.bf_opt = self.ui.params_dict["biofeedback"]["visual_feedback"]["varying_parameter"]
-                    self.ui.bf_ch_index = self.ui.params_dict["biofeedback"]["visual_feedback"]["ch_index"]
-                    self.ui.bf_metric = self.ui.params_dict["biofeedback"]["visual_feedback"]["metric"]
-                else:
-                    self.ui.biofeedback_enable = False
-                
-            if self.ui.biofeedback_enable:
-                self.ui.tabWidget.setCurrentIndex(1)
-                self.ui.biofeedback_thread = BioFeedback_Thread(
-                    config.SAMPLING_RATE, self.ui.bf_win, self.ui.bf_step, self.ui.bf_opt, self.ui.bf_metric, parent=self)
-                if self.ui.bf_opt == "size":
-                    self.ui.biofeedback_thread.update_bf_size.connect(self.update_bf_visualization_size)
-                else:
-                    color_bar_image = files('PhysioKit2.images').joinpath('color_bar.png')
-                    pixmap = QPixmap(color_bar_image)
-                    self.ui.label_palette.setPixmap(pixmap)
-                    self.ui.biofeedback_thread.update_bf_color.connect(self.update_bf_visualization_color)
-
-                if self.ui.bf_opt == "size":
-                    img_width = 1280
-                    img_height = 720
-                    self.ui.bf_center_coordinates = (img_width//2, img_height//2)
-                    self.ui.bf_disp_image = 255*np.ones((img_height, img_width, 3), np.uint8)
-                    self.ui.bf_circle_thickness = -1
-                    self.ui.bf_circle_color = (127, 127, 127)
-
-                    disp_image = deepcopy(self.ui.bf_disp_image)
-                    disp_image = cv2.circle(disp_image, self.ui.bf_center_coordinates,
-                                            self.ui.biofeedback_thread.circle_radius_baseline, self.ui.bf_circle_color, self.ui.bf_circle_thickness)
-                    h, w, ch = disp_image.shape
-                    bytesPerLine = ch * w
-                    qimg = QImage(self.ui.bf_disp_image.data, w, h, bytesPerLine, QImage.Format_RGB888)
-                    self.preview_pixmap = QPixmap.fromImage(qimg)
-                    self.ui.label_biofeedback.setPixmap(self.preview_pixmap)
-                    self.ui.label_palette.hide()
-
-                else:
-                    self.ui.label_biofeedback.setStyleSheet("background-color:rgb(127,127,127); border-radius: 10px")
-
-                print("Biofeedback Enabled")
-
-
             self.ui.data_root_dir = self.ui.params_dict["exp"]["datapath"]
             if not os.path.exists(self.ui.data_root_dir):
                 os.makedirs(self.ui.data_root_dir)
@@ -362,6 +315,69 @@ class physManager(QWidget):
                     self.sqa_config, config.SAMPLING_RATE, num_sq_ch, axis=1, parent=self)
                 self.ui.sq_inference_thread.update_sq_vec.connect(self.myAnim.addSQData)
                 self.ui.sq_thread_created = True
+
+            if "biofeedback" in self.ui.params_dict:
+                if bool(self.ui.params_dict["biofeedback"]["enabled"]):
+                    self.ui.biofeedback_enable = True
+                    self.ui.bf_ch_index = self.ui.params_dict["biofeedback"]["ch_index"]
+                    self.ui.bf_type = self.ui.params_dict["biofeedback"]["type"]
+                    if self.ui.bf_type == "visual":
+                        self.ui.bf_vis_parameter = self.ui.params_dict["biofeedback"]["visual_feedback"]["varying_parameter"]
+
+                else:
+                    self.ui.biofeedback_enable = False
+
+            self.phys_data_acquisition_thread = dataAcquisition(self.ui, parent=self)
+            self.phys_data_acquisition_thread.data_signal.connect(self.csvWrite_function)
+            self.phys_data_acquisition_thread.data_signal_filt.connect(self.myAnim.addData)
+            self.phys_data_acquisition_thread.time_signal.connect(self.update_time_elapsed)
+            self.phys_data_acquisition_thread.log_signal.connect(self.update_log)
+            self.phys_data_acquisition_thread.stop_signal.connect(self.stop_record_from_thread)
+
+            if self.ui.params_dict["exp"]["assess_signal_quality"]:
+                self.phys_data_acquisition_thread.sq_signal.connect(self.ui.sq_inference_thread.add_sq_data)
+                
+            if self.ui.biofeedback_enable:
+                self.ui.biofeedback_thread = BioFeedback_Thread(config.SAMPLING_RATE, self.ui.params_dict["biofeedback"], parent=self)
+                
+                if self.ui.bf_type == "visual":
+                    
+                    self.ui.tabWidget.setCurrentIndex(1)
+
+                    if self.ui.bf_vis_parameter == "size":
+                        self.ui.biofeedback_thread.update_bf_vis_out_int.connect(self.update_bf_visualization_size)
+                    else:
+                        color_bar_image = files('PhysioKit2.images').joinpath('color_bar.png')
+                        pixmap = QPixmap(color_bar_image)
+                        self.ui.label_palette.setPixmap(pixmap)
+                        self.ui.biofeedback_thread.update_bf_vis_out_str.connect(self.update_bf_visualization_color)
+
+                    if self.ui.bf_vis_parameter == "size":
+                        img_width = 1280
+                        img_height = 720
+                        self.ui.bf_center_coordinates = (img_width//2, img_height//2)
+                        self.ui.bf_disp_image = 255*np.ones((img_height, img_width, 3), np.uint8)
+                        self.ui.bf_circle_thickness = -1
+                        self.ui.bf_circle_color = (127, 127, 127)
+
+                        disp_image = deepcopy(self.ui.bf_disp_image)
+                        disp_image = cv2.circle(disp_image, self.ui.bf_center_coordinates,
+                                                self.ui.biofeedback_thread.circle_radius_baseline, self.ui.bf_circle_color, self.ui.bf_circle_thickness)
+                        h, w, ch = disp_image.shape
+                        bytesPerLine = ch * w
+                        qimg = QImage(self.ui.bf_disp_image.data, w, h, bytesPerLine, QImage.Format_RGB888)
+                        self.preview_pixmap = QPixmap.fromImage(qimg)
+                        self.ui.label_biofeedback.setPixmap(self.preview_pixmap)
+                        self.ui.label_palette.hide()
+
+                    else:
+                        self.ui.label_biofeedback.setStyleSheet("background-color:rgb(127,127,127); border-radius: 10px")
+                
+                elif self.ui.bf_type == "generic_uart":
+                    self.ui.biofeedback_thread.update_bf_generic_out.connect(self.phys_data_acquisition_thread.add_bf_out_signal)
+
+                print("Biofeedback Enabled")
+
 
             self.ui.exp_loaded = True
             if self.ui.ser_open_status:
@@ -467,16 +483,6 @@ class physManager(QWidget):
             if not self.phys_data_acq_started_flag:
                 # self.phys_data_acquisition_thread = threading.Thread(name='phys_data_acquisition', target=self.phys_data_acquisition, daemon=True)
                 # self.phys_data_acquisition_thread.start()
-
-                self.phys_data_acquisition_thread = dataAcquisition(self.ui, parent=self)
-                self.phys_data_acquisition_thread.data_signal.connect(self.csvWrite_function)
-                self.phys_data_acquisition_thread.data_signal_filt.connect(self.myAnim.addData)
-                self.phys_data_acquisition_thread.time_signal.connect(self.update_time_elapsed)
-                self.phys_data_acquisition_thread.log_signal.connect(self.update_log)
-                self.phys_data_acquisition_thread.stop_signal.connect(self.stop_record_from_thread)
-
-                if self.ui.params_dict["exp"]["assess_signal_quality"]:
-                    self.phys_data_acquisition_thread.sq_signal.connect(self.ui.sq_inference_thread.add_sq_data)
                 
                 self.phys_data_acquisition_thread.start()
 
@@ -641,6 +647,8 @@ class dataAcquisition(QThread):
         self.ppg_highcut = 5.0
         self.filt_order = 1
 
+        self.bf_out_flag = False
+
         for nCh in range(config.NCHANNELS):
             if self.ui.channel_types[nCh] == 'eda':
                 self.filt_objs[str(nCh)] = lFilter_moving_average(window_size=self.eda_moving_average_window_size)
@@ -648,6 +656,11 @@ class dataAcquisition(QThread):
                 self.filt_objs[str(nCh)] = lFilter(self.resp_lowcut, self.resp_highcut, config.SAMPLING_RATE, order=self.filt_order)
             elif self.ui.channel_types[nCh] == 'ppg':
                 self.filt_objs[str(nCh)] = lFilter(self.ppg_lowcut, self.ppg_highcut, config.SAMPLING_RATE, order=self.filt_order)
+
+
+    def add_bf_out_signal(self, val):
+        self.bf_out_str = str(int(val))
+        self.bf_out_flag = True
 
 
     def stop(self):
@@ -672,12 +685,17 @@ class dataAcquisition(QThread):
                 #Read data from serial port
                 try:
                     serial_data = self.ui.spObj.ser.readline(buffersize)
+
+                    if self.bf_out_flag:
+                        self.ui.spObj.ser.write(self.bf_out_str.encode())
+                        self.bf_out_flag = False
+
                     serial_data = serial_data.split(b'\r\n')
                     serial_data = serial_data[0].split(b',')
                     #print(serial_data)
-                except:
+                except Exception as e:
                     serial_data = []
-                    print('Serial port not open')
+                    print("Exception:", e)
                     time.sleep(0.1)
 
                 try:
@@ -720,9 +738,11 @@ class dataAcquisition(QThread):
 
                     self.data_signal_filt.emit(value_filt)
                     if "ppg" in config.CHANNEL_TYPES:
-                        filt_val = []
+                        filt_val = [0, 0]
+                        fv_count = 0
                         for idx in self.ui.ppg_sq_indices:
-                            filt_val.append(value_filt[idx])
+                            filt_val[fv_count] = value_filt[idx]
+                            fv_count += 1
                         self.sq_signal.emit(filt_val)
                     if self.ui.biofeedback_enable:
                         self.bf_signal.emit(value_filt[self.ui.bf_ch_index])

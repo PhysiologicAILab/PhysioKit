@@ -7,13 +7,37 @@ PhysioKit is a novel physiological computing toolkit which is open-source, acces
 
 PhysioKit consists of (i) a sensor and hardware layer that can be configured in a modular manner along with research needs, (ii) a software application layer that enables real-time data collection, streaming and visualization for both single and multi-user experiments. This also supports basic visual biofeedback configurations and multi-signal synchronization for co-located or remote multi-user settings.
 
+Below figure shows architecture of PhysioKit:
+<p align="left">
+<img src="images/architecture.png" alt="Architecture of PhysioKit" width="1024"/>
+</p>
+
 ## **Installation**
 
-If you are using Python virtual environment, activate the same or create new.
-You can use [PyPI package](https://pypi.org/project/PhysioKit2/) to install PhysioKit, using the below mentioned command:
+Pre-requisite: Python >= 3.8
+
+It is recommended to create separate Python virtual environment, which can be achieved using anaconda/ miniconda as follows:
+
+``` bash
+conda create -n phys python=3.11
+```
+
+Once the environment is created or already exists, activate the same as follows:
+
+``` bash
+conda activate phys
+```
+
+You can then use [PyPI package](https://pypi.org/project/PhysioKit2/) to install PhysioKit, using the below mentioned command:
 
 ``` bash
 pip install PhysioKit2
+```
+
+To update the currently installed package:
+
+``` bash
+pip install --upgrade PhysioKit2
 ```
 
 ## **Usage Instructions**
@@ -75,7 +99,11 @@ see example below
 physiokit --config configs/avr_default/sw_config.json
 ```
 
-This shall open user interface. Please note that if secondary screen is connected, the interface uses it to adjust its resolution, however it may have to be moved to the secondary screen if it got launched on the primary.
+This shall open user interface, basic functioning of which is shown in this demo. Please note that if secondary screen is connected, the interface uses it to adjust its resolution, however it may have to be moved to the secondary screen if it got launched on the primary.
+
+<p align="left">
+    <img src="images/PhysioKitDemo.gif" alt="Demo of PhysioKit" width="1024"/>
+</p>
 
 A brief description of each step is mentioned below:
 
@@ -100,7 +128,7 @@ A brief description of each step is mentioned below:
 ### **Data Analysis**
 
 Data analysis is supported by the *analysis_helper* folder. To extract features and export in spreadsheet, please refer to the README provided within the folder.
-In addition, on GitHub page of the repo, Jupyter notebooks *phys_analysis_eda.ipynb*, *phys_analysis_ppg.ipynb*, and *phys_analysis_resp.ipynb* are provided to illustrate basic analysis steps. This includes pre-processing as well as feature extraction for EDA, PPG and Resp signals respectively.
+In addition, Jupyter notebooks *phys_analysis_eda.ipynb*, *phys_analysis_ppg.ipynb*, and *phys_analysis_resp.ipynb* are provided to illustrate basic analysis steps. This includes pre-processing as well as feature extraction for EDA, PPG and Resp signals respectively.
 
 ---
 

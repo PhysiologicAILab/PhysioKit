@@ -1,10 +1,10 @@
 {
     "exp":
     {
-        "study_name": "Study1",
+        "study_name": "Demo",
         "conditions": ["baseline", "expCond1"],
-        "channels": ["EDA", "Resp", "PPG"],
-        "channel_types": ["eda", "resp", "ppg"],
+        "channels": ["Resp", "PPG"],
+        "channel_types": ["resp", "ppg"],
         "timed_acquisition": true,
         "assess_signal_quality": true,
         "max_time_seconds": [180, 180],
@@ -15,16 +15,12 @@
         }
     },
     "biofeedback": {
-        "enabled": false,
-        "ch_index": 1,
+        "enabled": true,
+        "ch_index": 0,
         "metric": "RSP",
         "window": 0.2,
         "step": 0.1,
         "mapping": "linear_increase",
-        "type": "visual",
-        "visual_feedback": {
-            "shape": "circle",
-            "varying_parameter": "size"
-        }
+        "type": "generic_uart"
     }
 }

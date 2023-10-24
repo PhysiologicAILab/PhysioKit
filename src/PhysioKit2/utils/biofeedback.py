@@ -4,18 +4,22 @@ from PySide6.QtCore import Signal, QThread, Signal
 import time
 
 class BioFeedback_Thread(QThread):
-    update_bf_size = Signal(int)
-    update_bf_color = Signal(str)
+    update_bf_vis_out_int = Signal(int)
+    update_bf_vis_out_str = Signal(str)
+    update_bf_generic_out = Signal(float)
 
-    def __init__(self, fs, window_len, step_len, vis_opt, bf_metric, parent):
+    def __init__(self, fs, bf_dict, parent):
         # QThread.__init__(self, parent)
         super(BioFeedback_Thread, self).__init__(parent=parent)
         self.stop_flag = False
-        self.vis_opt = vis_opt
-        self.bf_metric = bf_metric
         self.fs = fs
-        self.window_len = window_len
-        self.step_len = step_len
+        self.bf_metric = bf_dict["metric"]
+        self.window_len = float(bf_dict["window"])
+        self.step_len = float(bf_dict["step"])
+        self.bf_type = bf_dict["type"]
+        if self.bf_type == "visual":
+            self.vis_artifact = bf_dict["visual_feedback"]["varying_parameter"]
+        
         self.win_samples = int(self.fs * self.window_len)
         self.step_samples = int(self.fs * self.step_len)
         self.bf_signal = np.zeros(self.win_samples)
@@ -24,28 +28,30 @@ class BioFeedback_Thread(QThread):
         self.init_window_filled = False
         self.process_flag = False
         self.set_baseline = True
-        self.bf_type = ""
+
+        self.bf_signal_type = ""
         if "HRV" in self.bf_metric:
-            self.bf_type = "PPG"
+            self.bf_signal_type = "PPG"
         elif "RSP" in self.bf_metric:
-            self.bf_type = "RSP"
+            self.bf_signal_type = "RSP"
         elif "EDA" in self.bf_metric:
-            self.bf_type = "EDA"
+            self.bf_signal_type = "EDA"
         else:
             print("Invalid type of signal specified for biofeedback...")
 
-        if self.bf_type == "PPG":
+        if self.bf_signal_type == "PPG":
             self.ppg_metrics = {}
             self.ppg_metrics[self.bf_metric] = 0
             self.ppg_metrics["baseline"] = np.array([0, 0, 0, 0, 0, 0, 0, 0, 0, 0], dtype=np.float32)
             self.ppg_metrics["percent_change"] = np.array([1, 1, 1], dtype=np.float32)
 
-        self.circle_radius_baseline = 150
-        self.circle_radius_bf = 150
+        if self.bf_type == "visual":
+            self.circle_radius_baseline = 150
+            self.circle_radius_bf = 150
 
-        self.red_val = 127
-        self.green_val = 127
-        self.blue_val = 127
+            self.red_val = 127
+            self.green_val = 127
+            self.blue_val = 127
 
 
     def stop(self):
@@ -74,7 +80,7 @@ class BioFeedback_Thread(QThread):
             if self.process_flag:
                 self.process_flag = False
                 try:
-                    if self.bf_type == "PPG":
+                    if self.bf_signal_type == "PPG":
                         self.ppg_proc_signals, self.ppg_info = nk.ppg_process(self.bf_signal, sampling_rate=self.fs)
                         hrv_indices = nk.hrv_time(self.ppg_info['PPG_Peaks'])
                         self.ppg_metrics[self.bf_metric] = hrv_indices[self.bf_metric][0]
@@ -93,39 +99,47 @@ class BioFeedback_Thread(QThread):
                             self.ppg_metrics["percent_change"][-1] = 1 + 5.0*(float(self.ppg_metrics[self.bf_metric] - baseline) / baseline)
                         # else:
                         #     self.ppg_metrics["percent_change"] = 0
-                        print("percent_change", self.ppg_metrics["percent_change"])
+                        # print("percent_change", self.ppg_metrics["percent_change"])
                     
-                        if self.vis_opt == "size":    
-                            self.circle_radius_bf = int(round((np.mean(self.ppg_metrics["percent_change"]) * self.circle_radius_baseline)))
-                            if self.circle_radius_bf < 100:
-                                self.circle_radius_bf = 100
-                            elif self.circle_radius_bf > 300:
-                                self.circle_radius_bf = 300
-                            self.update_bf_size.emit(self.circle_radius_bf)
-                        
-                        else:
-                            red_val = self.red_val - self.red_val * self.ppg_metrics["percent_change"]
-                            green_val = self.green_val + self.green_val * self.ppg_metrics["percent_change"]
-                            blue_val = self.blue_val + self.blue_val * self.ppg_metrics["percent_change"]
+                        if self.bf_type == "visual":
+                            if self.vis_artifact == "size":    
+                                self.circle_radius_bf = int(round((np.mean(self.ppg_metrics["percent_change"]) * self.circle_radius_baseline)))
+                                if self.circle_radius_bf < 100:
+                                    self.circle_radius_bf = 100
+                                elif self.circle_radius_bf > 300:
+                                    self.circle_radius_bf = 300
+                                self.update_bf_vis_out_int.emit(self.circle_radius_bf)
+                            
+                            else:
+                                red_val = int(self.red_val - self.red_val * self.ppg_metrics["percent_change"])
+                                green_val = int(self.green_val + self.green_val * self.ppg_metrics["percent_change"])
+                                blue_val = int(self.blue_val + self.blue_val * self.ppg_metrics["percent_change"])
 
-                            biofeedback_visualization = ("background-color:" + "rgb({red},{green},{blue})".format(
-                                red=red_val, green=green_val, blue=blue_val) + "; border-radius: 10px")
+                                biofeedback_visualization = ("background-color:" + "rgb({red},{green},{blue})".format(
+                                    red=red_val, green=green_val, blue=blue_val) + "; border-radius: 10px")
 
-                            self.update_bf_color.emit(biofeedback_visualization)
+                                self.update_bf_vis_out_str.emit(biofeedback_visualization)
 
-                    elif self.bf_type == "RSP":
+                        elif self.bf_type == "generic_uart":
+                            self.update_bf_generic_out.emit(self.ppg_metrics["percent_change"])
+
+                    elif self.bf_signal_type == "RSP":
                         self.resp_val = np.mean(self.bf_signal)
 
-                        if self.vis_opt == "size":    
-                            self.circle_radius_bf = int(round(100 * (self.resp_val + 3)))
-                            if self.circle_radius_bf < 100:
-                                self.circle_radius_bf = 100
-                            elif self.circle_radius_bf > 300:
-                                self.circle_radius_bf = 300
-                            self.update_bf_size.emit(self.circle_radius_bf)
+                        if self.bf_type == "visual":
+                            if self.vis_artifact == "size":    
+                                self.circle_radius_bf = int(round(100 * (self.resp_val + 3)))
+                                if self.circle_radius_bf < 100:
+                                    self.circle_radius_bf = 100
+                                elif self.circle_radius_bf > 300:
+                                    self.circle_radius_bf = 300
+                                self.update_bf_vis_out_int.emit(self.circle_radius_bf)
 
-                        else:
-                            print("Not implemented...")
+                            else:
+                                print("Not implemented...")
+                        
+                        elif self.bf_type == "generic_uart":
+                            self.update_bf_generic_out.emit(self.resp_val)
 
                     else:
                         print("Not implemented")

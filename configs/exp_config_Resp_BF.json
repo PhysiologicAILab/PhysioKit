@@ -1,12 +1,12 @@
 {
     "exp":
     {
-        "study_name": "Study1",
+        "study_name": "Demo",
         "conditions": ["baseline", "expCond1"],
-        "channels": ["EDA", "Resp", "PPG"],
-        "channel_types": ["eda", "resp", "ppg"],
+        "channels": ["Resp"],
+        "channel_types": ["resp"],
         "timed_acquisition": true,
-        "assess_signal_quality": true,
+        "assess_signal_quality": false,
         "max_time_seconds": [180, 180],
         "datapath": "data",
         "event_codes": {
@@ -15,8 +15,8 @@
         }
     },
     "biofeedback": {
-        "enabled": false,
-        "ch_index": 1,
+        "enabled": true,
+        "ch_index": 0,
         "metric": "RSP",
         "window": 0.2,
         "step": 0.1,
