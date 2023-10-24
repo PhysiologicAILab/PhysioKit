@@ -15,10 +15,9 @@ class BioFeedback_Thread(QThread):
         self.bf_metric = bf_metric
         self.fs = fs
         self.window_len = window_len
-        self.step_secs = step_len
         self.step_len = step_len
-        self.win_samples = self.fs * self.window_len
-        self.step_samples = self.fs * self.step_len
+        self.win_samples = int(self.fs * self.window_len)
+        self.step_samples = int(self.fs * self.step_len)
         self.bf_signal = np.zeros(self.win_samples)
         self.count_step = 0
         self.count_init_window = 0
@@ -115,7 +114,7 @@ class BioFeedback_Thread(QThread):
                             self.update_bf_color.emit(biofeedback_visualization)
 
                     elif self.bf_type == "RSP":
-                        self.resp_val = np.mean(self.resp_signal)
+                        self.resp_val = np.mean(self.bf_signal)
 
                         if self.vis_opt == "size":    
                             self.circle_radius_bf = int(round(100 * (self.resp_val + 3)))
@@ -135,4 +134,4 @@ class BioFeedback_Thread(QThread):
                     print(e)
 
             else:
-                time.sleep(self.step_secs)
+                time.sleep(self.step_len)

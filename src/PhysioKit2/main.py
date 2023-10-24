@@ -271,8 +271,8 @@ class physManager(QWidget):
             if "biofeedback" in self.ui.params_dict:
                 if bool(self.ui.params_dict["biofeedback"]["enabled"]):
                     self.ui.biofeedback_enable = True
-                    self.ui.bf_win = int(self.ui.params_dict["biofeedback"]["visual_feedback"]["window"])
-                    self.ui.bf_step = int(self.ui.params_dict["biofeedback"]["visual_feedback"]["step"])
+                    self.ui.bf_win = float(self.ui.params_dict["biofeedback"]["visual_feedback"]["window"])
+                    self.ui.bf_step = float(self.ui.params_dict["biofeedback"]["visual_feedback"]["step"])
                     self.ui.bf_opt = self.ui.params_dict["biofeedback"]["visual_feedback"]["varying_parameter"]
                     self.ui.bf_ch_index = self.ui.params_dict["biofeedback"]["visual_feedback"]["ch_index"]
                     self.ui.bf_metric = self.ui.params_dict["biofeedback"]["visual_feedback"]["metric"]
@@ -729,10 +729,11 @@ class dataAcquisition(QThread):
 
                     time.sleep(0.001)
 
-                except:
+                except Exception as e:
                     try:
                         assert len(serial_data) == (config.NCHANNELS)  #data channels + time_stamp
-                        print('error in reading data', serial_data)
+                        print('Serial data', serial_data)
+                        print("Exception:", e)
                         time.sleep(0.1)
                     except:
                         print('Mismatch in the number of channels specified in JSON file and the serial data received from Arduino or microcontroller')
@@ -815,10 +816,11 @@ class PlotAnimation(TimedAnimation):
         self.event_toggle = False
 
         self.plot_signals = figCanvas.plot_signals
-        self.sq_vecs = figCanvas.sq_vecs
+        if self.sq_flag:
+            self.sq_vecs = figCanvas.sq_vecs
+            self.sq_images = figCanvas.sq_images
         self.axs = figCanvas.axs
         self.lines = figCanvas.lines
-        self.sq_images = figCanvas.sq_images
         config.ANIM_RUNNING = True
 
         super(PlotAnimation, self).__init__(self.fig, interval, blit=True)
@@ -830,14 +832,18 @@ class PlotAnimation(TimedAnimation):
 
     def _init_draw(self):
         lines = []
-        sq_images = []
+        if self.sq_flag:
+            sq_images = []
         for nCh in range(self.nChannels):
             lines.append(self.lines[str(nCh)])
-            if self.channel_types[nCh] == "ppg":
+            if self.sq_flag and self.channel_types[nCh] == "ppg":
                 sq_images.append(self.sq_images[str(nCh)])
         lines = tuple(lines)
-        sq_images = tuple(sq_images)
-        return (lines, sq_images)
+        if self.sq_flag:
+            sq_images = tuple(sq_images)
+            return (lines, sq_images)
+        else:
+            return (lines)
 
 
     def reset_draw(self):
