@@ -682,7 +682,7 @@ class dataAcquisition(QThread):
 
                 try:
                     value = []
-                    value_filt = []
+                    value_filt = []     #filt value update can be done at lower rate to optimize performance in future
                     for nCh in range(config.NCHANNELS):
                         serial_val = int(serial_data[nCh])
                         value.append(serial_val)
