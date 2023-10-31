@@ -6,7 +6,7 @@ import time
 class BioFeedback_Thread(QThread):
     update_bf_vis_out_int = Signal(int)
     update_bf_vis_out_str = Signal(str)
-    update_bf_generic_out = Signal(float)
+    update_bf_generic_out = Signal(str)
 
     def __init__(self, fs, bf_dict, parent):
         # QThread.__init__(self, parent)
@@ -22,12 +22,21 @@ class BioFeedback_Thread(QThread):
         
         self.win_samples = int(self.fs * self.window_len)
         self.step_samples = int(self.fs * self.step_len)
+        self.normalizing_samples = int(self.fs * 4)
         self.bf_signal = np.zeros(self.win_samples)
+        self.bf_signal_for_norm = np.zeros(self.normalizing_samples)
         self.count_step = 0
         self.count_init_window = 0
         self.init_window_filled = False
         self.process_flag = False
         self.set_baseline = True
+        self.max_bf_signal = 1
+        self.min_bf_signal = 0
+        self.bf_threshold = 225
+        self.resp_bf_max_val = 150
+        self.resp_bf_min_val = 70
+        self.resp_bf_off = 0
+
 
         self.bf_signal_type = ""
         if "HRV" in self.bf_metric:
@@ -62,17 +71,30 @@ class BioFeedback_Thread(QThread):
 
     def add_bf_data(self, sig_val):
         self.bf_signal = np.roll(self.bf_signal, -1)
+        self.bf_signal_for_norm = np.roll(self.bf_signal_for_norm, -1)
+
         self.bf_signal[-1] = sig_val
+        self.bf_signal_for_norm[-1] = sig_val
         if not self.init_window_filled:
             self.count_init_window += 1
             if self.count_init_window >= self.win_samples:
                 self.init_window_filled = True
                 self.process_flag = True
+                mx = np.max(self.bf_signal_for_norm)
+                mn = np.min(self.bf_signal_for_norm)
+                if mx - mn > self.bf_threshold:
+                    self.max_bf_signal = mx
+                    self.min_bf_signal = mn
         else:
             self.count_step += 1
             if self.count_step >= self.step_samples:
                 self.process_flag = True
                 self.count_step = 0
+                mx = np.max(self.bf_signal_for_norm)
+                mn = np.min(self.bf_signal_for_norm)
+                if mx - mn > self.bf_threshold:
+                    self.max_bf_signal = mx
+                    self.min_bf_signal = mn
 
 
     def run(self):
@@ -121,10 +143,46 @@ class BioFeedback_Thread(QThread):
                                 self.update_bf_vis_out_str.emit(biofeedback_visualization)
 
                         elif self.bf_type == "generic_uart":
-                            self.update_bf_generic_out.emit(self.ppg_metrics["percent_change"])
+                            # map the percentage change to string/ char before using this function.
+                            self.update_bf_generic_out.emit(str(self.ppg_metrics["percent_change"]))
 
                     elif self.bf_signal_type == "RSP":
+                        
                         self.resp_val = np.mean(self.bf_signal)
+                        # print("Max - Min", self.max_bf_signal - self.min_bf_signal)
+                        self.resp_val = (self.resp_val - self.min_bf_signal)/ (self.max_bf_signal - self.min_bf_signal)
+                        # self.resp_val = int(self.resp_val * 255)
+                        # self.resp_val = (1 - self.resp_val)
+
+                        # print("self.resp_val:", self.resp_val)
+                        if self.resp_val < 0.6:
+                            self.resp_val = '0'
+                        elif self.resp_val >= 0.6 and self.resp_val < 0.65:
+                            self.resp_val = '1'
+                        elif self.resp_val >= 0.65 and self.resp_val < 0.70:
+                            self.resp_val = '2'
+                        elif self.resp_val >= 0.70 and self.resp_val < 0.75:
+                            self.resp_val = '3'
+                        elif self.resp_val >= 0.75 and self.resp_val < 0.80:
+                            self.resp_val = '4'
+                        elif self.resp_val >= 0.80 and self.resp_val < 0.85:
+                            self.resp_val = '5'
+                        elif self.resp_val >= 0.85 and self.resp_val < 0.9:
+                            self.resp_val = '6'
+                        elif self.resp_val >= 0.90 and self.resp_val < 0.95:
+                            self.resp_val = '7'
+                        elif self.resp_val >= 0.95:
+                            self.resp_val = '8'
+                        else:
+                            pass
+
+                        
+                        #     self.resp_val = int(self.resp_val * self.resp_bf_max_val)
+
+                        # if self.resp_val > self.resp_bf_max_val:
+                        #     self.resp_val = self.resp_bf_max_val
+                        # if self.resp_val < 0:
+                        #     self.resp_val = 0
 
                         if self.bf_type == "visual":
                             if self.vis_artifact == "size":    

@@ -659,7 +659,9 @@ class dataAcquisition(QThread):
 
 
     def add_bf_out_signal(self, val):
-        self.bf_out_str = str(int(val))
+        # self.bf_out_str = str(int(val))
+        self.bf_out_str = val
+        # print(self.bf_out_str)
         self.bf_out_flag = True
 
 
@@ -823,7 +825,7 @@ class FigCanvas(FigureCanvas):
 
 
 class PlotAnimation(TimedAnimation):
-    def __init__(self, figCanvas: FigureCanvas, interval: int = 20) -> None:
+    def __init__(self, figCanvas: FigureCanvas, interval: int = 1) -> None:
         self.fig = figCanvas.fig
         self.sq_flag = figCanvas.sq_flag
         self.nChannels = figCanvas.nChannels

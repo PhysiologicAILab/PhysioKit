@@ -10,6 +10,8 @@ long int baudrate = 115200;
 
 unsigned int aVal = 0;
 unsigned int bVal = 0;
+int PWM = 0;
+int prev_PWM = 0;
 int bf = 0;
 
 // To compute: inter_sample_interval_us
@@ -29,10 +31,50 @@ void setup() {
 void loop() {
 
     bf = Serial.read();
-    if (bf > 0)
+    switch(bf)
     {
-      analogWrite(PWM_PIN, bf);
+      case '0':
+        PWM = 0;
+        prev_PWM = PWM;
+        break;
+      case '1':
+        PWM = 70;
+        prev_PWM = PWM;
+        break;
+      case '2':
+        PWM = 80;
+        prev_PWM = PWM;
+        break;
+      case '3':  
+        PWM = 90;
+        prev_PWM = PWM;
+        break;
+      case '4':
+        PWM = 100;
+        prev_PWM = PWM;
+        break;
+      case '5':  
+        PWM = 110;
+        prev_PWM = PWM;
+        break;
+      case '6':
+        PWM = 120;
+        prev_PWM = PWM;
+        break;
+      case '7':  
+        PWM = 130;
+        prev_PWM = PWM;
+        break;
+      case '8':  
+        PWM = 140;
+        prev_PWM = PWM;
+        break;
+      default:
+        PWM = prev_PWM;
+        break;
     }
+
+   analogWrite(PWM_PIN, PWM);
    
    aVal = analogRead(APin); // Read the Sensor1 value. Assign this value to the "aVal" variable.
    bVal = analogRead(BPin); // Read the Sensor2 value. Assign this value to the "bVal" variable.
