@@ -206,4 +206,5 @@ class BioFeedback_Thread(QThread):
                     print(e)
 
             else:
+                # pass
                 time.sleep(self.step_len)

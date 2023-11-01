@@ -14,9 +14,17 @@ import shutil
 import numpy as np
 import csv
 from datetime import datetime
+import keyboard
 
 import cv2
 from copy import deepcopy
+
+from .utils.data_processing_lib import lFilter, lFilter_moving_average
+from .utils.external_sync import ServerThread, ClientThread
+from .utils.biofeedback import BioFeedback_Thread
+from .utils.devices import serialPort
+from .utils import config
+from .sqa.inference_thread import sqaPPGInference
 
 from PySide6.QtWidgets import QApplication, QWidget, QGraphicsScene, QFileDialog
 from PySide6.QtCore import QFile, QObject, Signal, QThread, Qt
@@ -30,13 +38,6 @@ from matplotlib.backends.backend_qtagg import FigureCanvasQTAgg as FigureCanvas
 from matplotlib.animation import TimedAnimation
 from matplotlib.figure import Figure
 import matplotlib.pyplot as plt
-
-from .utils.data_processing_lib import lFilter, lFilter_moving_average
-from .utils.external_sync import ServerThread, ClientThread
-from .utils.biofeedback import BioFeedback_Thread
-from .utils.devices import serialPort
-from .utils import config
-from .sqa.inference_thread import sqaPPGInference
 
 
 class Server_Sync(QObject):
@@ -197,7 +198,7 @@ class physManager(QWidget):
         if os.path.exists(config.TEMP_FILENAME):
             if not config.CSVFILE_HANDLE.closed:
                 config.CSVFILE_HANDLE.close()
-            time.sleep(0.2)
+            # time.sleep(0.2)
             os.remove(config.TEMP_FILENAME)
 
 
@@ -402,16 +403,16 @@ class physManager(QWidget):
 
         self.ui.pushButton_record_data.setEnabled(False)
         if not config.CSVFILE_HANDLE.closed:
-            time.sleep(0.5)
+            # time.sleep(0.5)
             config.CSVFILE_HANDLE.close()
-            time.sleep(0.5)
+            # time.sleep(0.5)
         self.save_file_path = os.path.join(self.ui.data_root_dir, self.ui.pid + "_" +
                                            self.ui.curr_exp_name + '_' + self.ui.curr_exp_condition + '_' + 
                                            self.ui.utc_sec + '_' + str(round(np.random.rand(1)[0], 6)).replace('0.', '') + '.csv')
         if os.path.exists(config.TEMP_FILENAME):
             shutil.move(config.TEMP_FILENAME, self.save_file_path)
             self.ui.label_status.setText("Recording stopped and data saved for: Exp - " + self.ui.curr_exp_name + "; Condition - " + self.ui.curr_exp_condition)
-            time.sleep(0.5)
+            # time.sleep(0.5)
         else:
             self.ui.label_status.setText("Error saving data")
 
@@ -690,6 +691,7 @@ class dataAcquisition(QThread):
 
                     if self.bf_out_flag:
                         self.ui.spObj.ser.write(self.bf_out_str.encode())
+                        # keyboard.write(self.bf_out_str)
                         self.bf_out_flag = False
 
                     serial_data = serial_data.split(b'\r\n')
@@ -698,7 +700,7 @@ class dataAcquisition(QThread):
                 except Exception as e:
                     serial_data = []
                     print("Exception:", e)
-                    time.sleep(0.1)
+                    # time.sleep(0.1)
 
                 try:
                     value = []
@@ -749,17 +751,17 @@ class dataAcquisition(QThread):
                     if self.ui.biofeedback_enable:
                         self.bf_signal.emit(value_filt[self.ui.bf_ch_index])
 
-                    time.sleep(0.001)
+                    # time.sleep(0.001)
 
                 except Exception as e:
                     try:
                         assert len(serial_data) == (config.NCHANNELS)  #data channels + time_stamp
                         print('Serial data', serial_data)
                         print("Exception:", e)
-                        time.sleep(0.1)
+                        # time.sleep(0.1)
                     except:
                         print('Mismatch in the number of channels specified in JSON file and the serial data received from Arduino or microcontroller')
-                        time.sleep(0.1)
+                        # time.sleep(0.1)
 
             else:
                 if self.ui.data_record_flag:
@@ -767,7 +769,8 @@ class dataAcquisition(QThread):
                 if not config.HOLD_ACQUISITION_THREAD:
                     break
                 else:
-                    time.sleep(1)
+                    pass
+                    # time.sleep(1)
 
 
 
