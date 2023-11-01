@@ -1,5 +1,6 @@
 import os
 import sys
+import platform
 os.environ["PYSIDE_DESIGNER_PLUGINS"] = '.'
 os.environ["QT_LOGGING_RULES"]='*.debug=false;qt.pysideplugin=false'
 import argparse
@@ -14,10 +15,11 @@ import shutil
 import numpy as np
 import csv
 from datetime import datetime
-import keyboard
 
 import cv2
 from copy import deepcopy
+import faulthandler
+faulthandler.enable()
 
 from .utils.data_processing_lib import lFilter, lFilter_moving_average
 from .utils.external_sync import ServerThread, ClientThread
@@ -38,6 +40,11 @@ from matplotlib.backends.backend_qtagg import FigureCanvasQTAgg as FigureCanvas
 from matplotlib.animation import TimedAnimation
 from matplotlib.figure import Figure
 import matplotlib.pyplot as plt
+
+if "win" in config.OS_NAME:
+    import keyboard
+else:
+    pass
 
 
 class Server_Sync(QObject):
@@ -132,7 +139,7 @@ class physManager(QWidget):
         for port, desc, hwid in sorted(self.ui.spObj.ports):
             # print("{}: {} [{}]".format(port, desc, hwid))
             self.ui.ser_ports_desc.append(str(port))
-            if config.OS_NAME == 'Darwin':
+            if "macos" in config.OS_NAME:
                 port = port.replace('/dev/cu', '/dev/tty')
             self.ui.ser_port_names.append(port)
 
@@ -691,7 +698,8 @@ class dataAcquisition(QThread):
 
                     if self.bf_out_flag:
                         self.ui.spObj.ser.write(self.bf_out_str.encode())
-                        # keyboard.write(self.bf_out_str)
+                        # if "win" in config.OS_NAME:
+                        #     keyboard.write(self.bf_out_str)
                         self.bf_out_flag = False
 
                     serial_data = serial_data.split(b'\r\n')
@@ -950,7 +958,7 @@ def main(argv=sys.argv):
     args_parser = parser.parse_args()
 
 
-    if config.OS_NAME == 'Darwin':
+    if "macos" in config.OS_NAME:
         app.setStyle('Fusion')
     
     widget = physManager(args_parser)

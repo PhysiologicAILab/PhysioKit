@@ -1,8 +1,9 @@
 import os
+import platform
 
 OS_NAME = ''
 try:
-    OS_NAME = os.uname().sysname
+    OS_NAME = platform.platform().lower()
 except:
     pass
 
