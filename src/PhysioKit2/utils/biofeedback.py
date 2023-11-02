@@ -22,7 +22,7 @@ class BioFeedback_Thread(QThread):
         
         self.win_samples = int(self.fs * self.window_len)
         self.step_samples = int(self.fs * self.step_len)
-        self.normalizing_samples = int(self.fs * 4)
+        self.normalizing_samples = int(self.fs * 6)
         self.bf_signal = np.zeros(self.win_samples)
         self.bf_signal_for_norm = np.zeros(self.normalizing_samples)
         self.count_step = 0
@@ -85,6 +85,9 @@ class BioFeedback_Thread(QThread):
                 if mx - mn > self.bf_threshold:
                     self.max_bf_signal = mx
                     self.min_bf_signal = mn
+                else:
+                    self.max_bf_signal = self.bf_threshold
+                    self.min_bf_signal = 0
         else:
             self.count_step += 1
             if self.count_step >= self.step_samples:
@@ -206,5 +209,5 @@ class BioFeedback_Thread(QThread):
                     print(e)
 
             else:
-                # pass
-                time.sleep(self.step_len)
+                pass
+                # time.sleep(self.step_len)
