@@ -20,6 +20,7 @@
         "metric": "RSP",
         "window": 0.1,
         "step": 0.05,
+        "modulation_threshold": 225,
         "mapping": "linear_increase",
         "type": "generic_uart"
     }

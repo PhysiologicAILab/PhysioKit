@@ -652,8 +652,8 @@ class dataAcquisition(QThread):
         self.resp_lowcut = 0.1
         self.resp_highcut = 0.5
         self.ppg_lowcut = 0.5
-        self.ppg_highcut = 5.0
-        self.filt_order = 1
+        self.ppg_highcut = 3.5
+        self.filt_order = 2
 
         self.bf_out_flag = False
 
@@ -697,9 +697,15 @@ class dataAcquisition(QThread):
                     serial_data = self.ui.spObj.ser.readline(buffersize)
 
                     if self.bf_out_flag:
-                        self.ui.spObj.ser.write(self.bf_out_str.encode())
-                        # if "win" in config.OS_NAME:
-                        #     keyboard.write(self.bf_out_str)
+                        if "win" in config.OS_NAME:
+                            bf_key = 'o'
+                            if self.bf_out_str != '0':
+                                bf_key = 'i'
+                            else:
+                                bf_key = 'o'
+                            # print(self.bf_out_str)
+                            keyboard.write(bf_key)
+                        self.ui.spObj.ser.write(self.bf_out_str.encode())                            
                         self.bf_out_flag = False
 
                     serial_data = serial_data.split(b'\r\n')

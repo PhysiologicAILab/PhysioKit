@@ -32,7 +32,7 @@ class BioFeedback_Thread(QThread):
         self.set_baseline = True
         self.max_bf_signal = 1
         self.min_bf_signal = 0
-        self.bf_threshold = 225
+        self.bf_threshold = float(bf_dict["modulation_threshold"])
         self.resp_bf_max_val = 150
         self.resp_bf_min_val = 70
         self.resp_bf_off = 0
@@ -95,6 +95,7 @@ class BioFeedback_Thread(QThread):
                 self.count_step = 0
                 mx = np.max(self.bf_signal_for_norm)
                 mn = np.min(self.bf_signal_for_norm)
+                # print("mx-mn", mx - mn)
                 if mx - mn > self.bf_threshold:
                     self.max_bf_signal = mx
                     self.min_bf_signal = mn
@@ -209,5 +210,5 @@ class BioFeedback_Thread(QThread):
                     print(e)
 
             else:
-                pass
-                # time.sleep(self.step_len)
+                # pass
+                time.sleep(self.step_len)

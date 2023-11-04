@@ -40,6 +40,33 @@ To update the currently installed package:
 pip install --upgrade PhysioKit2
 ```
 
+## **Building wheel (.whl) package from source**
+Requires 'build' package that can be installed using pip with following command:
+
+``` bash
+pip install build
+```
+
+Clone the PhysioKit repository from GitHub and 'cd' to the clonned repo:
+
+``` bash
+git clone https://github.com/PhysiologicAILab/PhysioKit.git
+cd PhysioKit
+```
+
+Make the changes to the repo as required to serve your objectives.
+In setup.py, change the version - for your tracking purpose, e.g. 1.8.0 and then build the wheel package:
+
+``` bash
+python -m build 
+```
+
+Install the package that has been built:
+
+``` bash
+python -m pip install .\dist\PhysioKit2-1.8.0-py3-none-any.whl
+```
+
 ## **Usage Instructions**
 
 ### **Step-1: Upload program on the Arduino board**
