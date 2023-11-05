@@ -1,6 +1,5 @@
 import os
 import sys
-import platform
 os.environ["PYSIDE_DESIGNER_PLUGINS"] = '.'
 os.environ["QT_LOGGING_RULES"]='*.debug=false;qt.pysideplugin=false'
 import argparse
@@ -41,10 +40,10 @@ from matplotlib.animation import TimedAnimation
 from matplotlib.figure import Figure
 import matplotlib.pyplot as plt
 
-if "win" in config.OS_NAME:
-    import keyboard
-else:
-    pass
+# if "win" in config.OS_NAME:
+#     import keyboard
+# else:
+#     pass
 
 
 class Server_Sync(QObject):
@@ -694,27 +693,26 @@ class dataAcquisition(QThread):
             if config.LIVE_ACQUISITION_FLAG and self.ui.spObj.ser.is_open:
                 #Read data from serial port
                 try:
-                    serial_data = self.ui.spObj.ser.readline(buffersize)
-
                     if self.bf_out_flag:
-                        if "win" in config.OS_NAME:
-                            bf_key = 'o'
-                            if self.bf_out_str != '0':
-                                bf_key = 'i'
-                            else:
-                                bf_key = 'o'
-                            # print(self.bf_out_str)
-                            keyboard.write(bf_key)
+                        # if "win" in config.OS_NAME:
+                        #     bf_key = 'o'
+                        #     if self.bf_out_str != '0':
+                        #         bf_key = 'i'
+                        #     else:
+                        #         bf_key = 'o'
+                        #     # print(self.bf_out_str)
+                        #     keyboard.write(bf_key)
                         self.ui.spObj.ser.write(self.bf_out_str.encode())                            
                         self.bf_out_flag = False
 
+                    serial_data = self.ui.spObj.ser.readline(buffersize)
                     serial_data = serial_data.split(b'\r\n')
                     serial_data = serial_data[0].split(b',')
                     #print(serial_data)
                 except Exception as e:
                     serial_data = []
                     print("Exception:", e)
-                    # time.sleep(0.1)
+                    time.sleep(0.1)
 
                 try:
                     value = []
@@ -765,26 +763,31 @@ class dataAcquisition(QThread):
                     if self.ui.biofeedback_enable:
                         self.bf_signal.emit(value_filt[self.ui.bf_ch_index])
 
-                    # time.sleep(0.001)
+                    time.sleep(0.001)
 
                 except Exception as e:
                     try:
+                        self.ui.spObj.ser.reset_output_buffer()
+                        self.ui.spObj.ser.reset_input_buffer()
                         assert len(serial_data) == (config.NCHANNELS)  #data channels + time_stamp
                         print('Serial data', serial_data)
                         print("Exception:", e)
-                        # time.sleep(0.1)
+                        time.sleep(0.1)
                     except:
                         print('Mismatch in the number of channels specified in JSON file and the serial data received from Arduino or microcontroller')
-                        # time.sleep(0.1)
+                        time.sleep(0.1)
 
             else:
+                if self.ui.spObj.ser.is_open:
+                    self.ui.spObj.ser.reset_output_buffer()
+                    self.ui.spObj.ser.reset_input_buffer()
                 if self.ui.data_record_flag:
                      self.log_signal.emit("Data not recording. Check serial port connection and retry...")
+
                 if not config.HOLD_ACQUISITION_THREAD:
                     break
                 else:
-                    pass
-                    # time.sleep(1)
+                    time.sleep(1)
 
 
 
@@ -953,6 +956,7 @@ def main(argv=sys.argv):
                         dest='config', help='Software Config file-path')
 
     (width,height) = app.screens()[-1].size().toTuple()
+    height = height - 10
     print("Adjusting the interface to the screen resolution: width, height", width, height)
 
     parser.add_argument('--width', default=width, dest="width", type=int)
