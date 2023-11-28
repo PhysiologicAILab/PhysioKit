@@ -137,9 +137,9 @@ class BioFeedback_Thread(QRunnable):
                                 self.signals.update_bf_vis_out_int.emit(self.circle_radius_bf)
                             
                             else:
-                                red_val = int(self.red_val - self.red_val * self.ppg_metrics["percent_change"])
-                                green_val = int(self.green_val + self.green_val * self.ppg_metrics["percent_change"])
-                                blue_val = int(self.blue_val + self.blue_val * self.ppg_metrics["percent_change"])
+                                red_val = int(self.red_val - self.red_val * np.mean(self.ppg_metrics["percent_change"]))
+                                green_val = int(self.green_val + self.green_val * np.mean(self.ppg_metrics["percent_change"]))
+                                blue_val = int(self.blue_val + self.blue_val * np.mean(self.ppg_metrics["percent_change"]))
 
                                 biofeedback_visualization = ("background-color:" + "rgb({red},{green},{blue})".format(
                                     red=red_val, green=green_val, blue=blue_val) + "; border-radius: 10px")
@@ -148,7 +148,7 @@ class BioFeedback_Thread(QRunnable):
 
                         elif self.bf_type == "generic_uart":
                             # map the percentage change to string/ char before using this function.
-                            self.signals.update_bf_generic_out.emit(str(self.ppg_metrics["percent_change"]))
+                            self.signals.update_bf_generic_out.emit(str(np.mean(self.ppg_metrics["percent_change"])))
 
                     elif self.bf_signal_type == "RSP":
                         
