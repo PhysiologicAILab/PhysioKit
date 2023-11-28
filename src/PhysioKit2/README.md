@@ -16,15 +16,22 @@ Below figure shows architecture of PhysioKit:
 
 Pre-requisite: Python >= 3.8
 
-It is recommended to create separate Python virtual environment, which can be achieved using anaconda/ miniconda as follows:
+It is recommended to create separate Python virtual environment, which can be achieved using venv/ anaconda/ miniconda as follows. After creating the environment, activate the same.
+
+Using venv (preferred method for Windows).
 
 ``` bash
-conda create -n phys python=3.11
+cd ~
+mkdir envs
+cd envs
+python -m venv phys .
+~/envs/phys/Scripts/Activate.ps1
 ```
 
-Once the environment is created or already exists, activate the same as follows:
+Using conda
 
 ``` bash
+conda create -n phys
 conda activate phys
 ```
 

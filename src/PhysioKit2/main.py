@@ -66,6 +66,7 @@ class physManager(QWidget):
         self.ui.biofeedback_enable = False
         self.ui.sq_thread_created = False
         self.ui.fileIO_thread_created = False
+        self.phys_data_acq_started_flag = False
         
         self.ui.resize(args_parser.width, args_parser.height)
         # self.ui.adjustSize()
@@ -140,7 +141,6 @@ class physManager(QWidget):
         self.ui.comboBox_comport.currentIndexChanged.connect(self.update_serial_port)
         self.ui.pushButton_connect.pressed.connect(self.connect_serial_port)
         self.ui.pushButton_start_live_acquisition.pressed.connect(self.start_acquisition)
-        self.phys_data_acq_started_flag = False
 
         self.ui.pid = ""
         self.ui.lineEdit_PID.textChanged.connect(self.update_pid)

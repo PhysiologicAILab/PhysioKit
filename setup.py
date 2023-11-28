@@ -6,7 +6,7 @@ this_directory = Path(__file__).parent
 long_description = (this_directory / "README.md").read_text()
 
 setup(name='PhysioKit2',
-      version='1.8.2',
+      version='1.8.3',
       description="PhysioKit: An Open-Source, Low-Cost Physiological Computing Toolkit for Single- and Multi-User Studies",
       long_description=long_description,
       long_description_content_type='text/markdown',
