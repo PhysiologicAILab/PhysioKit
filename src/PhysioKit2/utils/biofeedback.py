@@ -1,16 +1,17 @@
 import neurokit2 as nk
 import numpy as np
-from PySide6.QtCore import Signal, QThread, Signal
+from PySide6.QtCore import Signal, QObject, QRunnable, Slot
 import time
 
-class BioFeedback_Thread(QThread):
+class BioFeedback_Signals(QObject):
     update_bf_vis_out_int = Signal(int)
     update_bf_vis_out_str = Signal(str)
     update_bf_generic_out = Signal(str)
 
-    def __init__(self, fs, bf_dict, parent):
-        # QThread.__init__(self, parent)
-        super(BioFeedback_Thread, self).__init__(parent=parent)
+class BioFeedback_Thread(QRunnable):
+
+    def __init__(self, fs, bf_dict, *args, **kwargs):
+        super(BioFeedback_Thread, self).__init__()
         self.stop_flag = False
         self.fs = fs
         self.bf_metric = bf_dict["metric"]
@@ -19,7 +20,11 @@ class BioFeedback_Thread(QThread):
         self.bf_type = bf_dict["type"]
         if self.bf_type == "visual":
             self.vis_artifact = bf_dict["visual_feedback"]["varying_parameter"]
-        
+
+        self.args = args
+        self.kwargs = kwargs
+        self.signals = BioFeedback_Signals()
+
         self.win_samples = int(self.fs * self.window_len)
         self.step_samples = int(self.fs * self.step_len)
         self.normalizing_samples = int(self.fs * 6)
@@ -61,12 +66,7 @@ class BioFeedback_Thread(QThread):
             self.red_val = 127
             self.green_val = 127
             self.blue_val = 127
-
-
-    def stop(self):
-        self.stop_flag = True
-        self.terminate()
-        print("Biofeedback thread terminated...")
+    
 
 
     def add_bf_data(self, sig_val):
@@ -100,7 +100,7 @@ class BioFeedback_Thread(QThread):
                     self.max_bf_signal = mx
                     self.min_bf_signal = mn
 
-
+    @Slot()
     def run(self):
         while not self.stop_flag:
             if self.process_flag:
@@ -134,7 +134,7 @@ class BioFeedback_Thread(QThread):
                                     self.circle_radius_bf = 100
                                 elif self.circle_radius_bf > 300:
                                     self.circle_radius_bf = 300
-                                self.update_bf_vis_out_int.emit(self.circle_radius_bf)
+                                self.signals.update_bf_vis_out_int.emit(self.circle_radius_bf)
                             
                             else:
                                 red_val = int(self.red_val - self.red_val * self.ppg_metrics["percent_change"])
@@ -144,11 +144,11 @@ class BioFeedback_Thread(QThread):
                                 biofeedback_visualization = ("background-color:" + "rgb({red},{green},{blue})".format(
                                     red=red_val, green=green_val, blue=blue_val) + "; border-radius: 10px")
 
-                                self.update_bf_vis_out_str.emit(biofeedback_visualization)
+                                self.signals.update_bf_vis_out_str.emit(biofeedback_visualization)
 
                         elif self.bf_type == "generic_uart":
                             # map the percentage change to string/ char before using this function.
-                            self.update_bf_generic_out.emit(str(self.ppg_metrics["percent_change"]))
+                            self.signals.update_bf_generic_out.emit(str(self.ppg_metrics["percent_change"]))
 
                     elif self.bf_signal_type == "RSP":
                         
@@ -180,9 +180,7 @@ class BioFeedback_Thread(QThread):
                         else:
                             pass
 
-                        
                         #     self.resp_val = int(self.resp_val * self.resp_bf_max_val)
-
                         # if self.resp_val > self.resp_bf_max_val:
                         #     self.resp_val = self.resp_bf_max_val
                         # if self.resp_val < 0:
@@ -195,20 +193,22 @@ class BioFeedback_Thread(QThread):
                                     self.circle_radius_bf = 100
                                 elif self.circle_radius_bf > 300:
                                     self.circle_radius_bf = 300
-                                self.update_bf_vis_out_int.emit(self.circle_radius_bf)
+                                self.signals.update_bf_vis_out_int.emit(self.circle_radius_bf)
 
                             else:
                                 print("Not implemented...")
+                                time.sleep(1)
                         
                         elif self.bf_type == "generic_uart":
-                            self.update_bf_generic_out.emit(self.resp_val)
+                            self.signals.update_bf_generic_out.emit(self.resp_val)
 
                     else:
                         print("Not implemented")
+                        time.sleep(1)
 
                 except Exception as e:
                     print(e)
+                    time.sleep(1)
 
             else:
-                # pass
-                time.sleep(self.step_len)
+                time.sleep(0.95*self.step_len)

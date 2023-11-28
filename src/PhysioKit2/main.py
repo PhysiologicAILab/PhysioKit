@@ -7,12 +7,8 @@ from importlib.resources import files
 
 # This Python file uses the following encoding: utf-8
 
-import threading
-import time
 import json
-import shutil
 import numpy as np
-import csv
 from datetime import datetime
 
 import cv2
@@ -20,15 +16,15 @@ from copy import deepcopy
 import faulthandler
 faulthandler.enable()
 
-from .utils.data_processing_lib import lFilter, lFilter_moving_average
-from .utils.external_sync import ServerThread, ClientThread
-from .utils.biofeedback import BioFeedback_Thread
-from .utils.devices import serialPort
-from .utils import config
-from .sqa.inference_thread import sqaPPGInference
+from PhysioKit2.utils.external_sync import ServerThread, ClientThread
+from PhysioKit2.utils.acquisition import Data_Acquisition_Thread
+from PhysioKit2.utils.file_ops import File_IO
+from PhysioKit2.utils.biofeedback import BioFeedback_Thread
+from PhysioKit2.utils import config
+from PhysioKit2.sqa.inference_thread import sqaPPGInference
 
 from PySide6.QtWidgets import QApplication, QWidget, QGraphicsScene, QFileDialog
-from PySide6.QtCore import QFile, QObject, Signal, QThread, Qt
+from PySide6.QtCore import QFile, Qt, QThreadPool
 from PySide6.QtUiTools import QUiLoader
 from PySide6.QtGui import QPixmap, QImage
 
@@ -46,9 +42,6 @@ import matplotlib.pyplot as plt
 #     pass
 
 
-class Server_Sync(QObject):
-    record_signal = Signal(bool)
-
 
 class physManager(QWidget):
     def __init__(self, args_parser):
@@ -63,12 +56,16 @@ class physManager(QWidget):
         self.ui = loader.load(ui_file, self)
         self.ui.graphicsView.viewport().setAttribute(Qt.WidgetAttribute.WA_AcceptTouchEvents, False)
         
+        self.threadpool = QThreadPool()
+        # print("Multithreading with maximum %d threads" % self.threadpool.maxThreadCount())
+
         pixmap = QPixmap(files('PhysioKit2.images').joinpath('banner.png'))
         self.ui.label.setPixmap(pixmap)
 
         self.ui.exp_loaded = False
         self.ui.biofeedback_enable = False
         self.ui.sq_thread_created = False
+        self.ui.fileIO_thread_created = False
         
         self.ui.resize(args_parser.width, args_parser.height)
         # self.ui.adjustSize()
@@ -77,19 +74,11 @@ class physManager(QWidget):
         self.ext_sync_flag = False
         self.ui.baudrate = 115200
 
-        self.ui.spObj = serialPort()
+        self.phys_Acquisition_Obj = Data_Acquisition_Thread(config)
         self.ui.ser_port_names = []
         self.ui.ser_ports_desc = []
         self.ui.ser_open_status = False
         self.ui.curr_ser_port_name = ''
-
-        temp_utc_sec = str((datetime.now() - datetime(1970, 1, 1)).total_seconds())
-        temp_utc_sec = temp_utc_sec.replace('.', '_') + '_' + str(round(np.random.rand(1)[0], 6)).replace('0.', '')
-        config.TEMP_FILENAME = temp_utc_sec + "_temp.csv"
-        self.csv_header = ['']
-        self.ui.write_eventcode = ''
-        config.CSVFILE_HANDLE = open(config.TEMP_FILENAME, 'w', encoding="utf", newline="")
-        self.writer = csv.writer(config.CSVFILE_HANDLE)
 
         sw_config_path = args_parser.config 
         self.ui.sw_config_dict = None
@@ -114,17 +103,17 @@ class physManager(QWidget):
                     self.sync_port = self.ui.sw_config_dict["server"]["tcp_port"]
                     self.ui.pushButton_sync.setEnabled(True)
                     self.ui.pushButton_sync.setText("Start TCP Server")                    
-                    self.server_thread = ServerThread(self.sync_ip, self.sync_port, parent=self)
-                    self.server_thread.update.connect(self.update_log)
+                    self.ui.server_thread = ServerThread(self.sync_ip, self.sync_port, parent=self)
+                    self.ui.server_thread.update.connect(self.update_log)
 
                 elif self.sync_role == "client":
                     self.sync_ip = self.ui.sw_config_dict["client"]["server_ip"]
                     self.sync_port = self.ui.sw_config_dict["client"]["tcp_port"]
                     self.ui.pushButton_sync.setEnabled(True)
                     self.ui.pushButton_sync.setText("Connect with Server")
-                    self.client_thread = ClientThread(self.sync_ip, self.sync_port, parent=self)
-                    self.client_thread.connect_update.connect(self.client_connect_status)
-                    self.client_thread.sync_update.connect(self.start_recording)
+                    self.ui.client_thread = ClientThread(self.sync_ip, self.sync_port, parent=self)
+                    self.ui.client_thread.connect_update.connect(self.client_connect_status)
+                    self.ui.client_thread.sync_update.connect(self.start_recording)
                     self.server_sync_available = False
 
                 else:
@@ -135,7 +124,7 @@ class physManager(QWidget):
         except:
             print("Invalid configuration in SW config file. Please check and start the application again...")
             
-        for port, desc, hwid in sorted(self.ui.spObj.ports):
+        for port, desc, hwid in sorted(self.phys_Acquisition_Obj.ports):
             # print("{}: {} [{}]".format(port, desc, hwid))
             self.ui.ser_ports_desc.append(str(port))
             if "macos" in config.OS_NAME:
@@ -178,8 +167,8 @@ class physManager(QWidget):
         config.HOLD_ACQUISITION_THREAD = False
 
         if self.phys_data_acq_started_flag:
-            if self.phys_data_acquisition_thread.isRunning():
-                self.phys_data_acquisition_thread.stop()
+            if not self.phys_Acquisition_Obj.stop_flag:
+                self.phys_Acquisition_Obj.stop_flag = True
 
         if config.ANIM_RUNNING:
             TimedAnimation._stop(self.myAnim)
@@ -190,22 +179,21 @@ class physManager(QWidget):
                 self.ui.sq_inference_thread.stop()
 
         if self.ui.biofeedback_enable:
-            if self.ui.biofeedback_thread.isRunning():
-                self.ui.biofeedback_thread.stop()
+            if not self.ui.biofeedback_thread.stop_flag:
+                self.ui.biofeedback_thread.stop_flag = True
+
+        if self.ui.fileIO_thread_created:
+            if not self.ui.fileIO_thread.stop_flag:
+                self.ui.fileIO_thread.stop_flag = True
 
         if self.ext_sync_flag:
             if self.sync_role == "server":
-                if self.server_thread.isRunning():
-                    self.server_thread.stop()
+                if self.ui.server_thread.isRunning():
+                    self.ui.server_thread.stop()
             else:
-                if self.client_thread.isRunning():
-                    self.client_thread.stop()
+                if self.ui.client_thread.isRunning():
+                    self.ui.client_thread.stop()
 
-        if os.path.exists(config.TEMP_FILENAME):
-            if not config.CSVFILE_HANDLE.closed:
-                config.CSVFILE_HANDLE.close()
-            # time.sleep(0.2)
-            os.remove(config.TEMP_FILENAME)
 
 
     def update_exp_condition(self):
@@ -221,13 +209,13 @@ class physManager(QWidget):
         if self.sync_role == "server":
             self.ui.label_status.setText("Server started...")
             self.ui.pushButton_sync.setText("Server Running")
-            self.server_thread.start()
+            self.ui.server_thread.start()
             self.ui.pushButton_sync.setEnabled(False)
 
         elif self.sync_role == "client":
             self.ui.pushButton_sync.setEnabled(False)
             self.ui.label_status.setText("Client is attempting to reach server with IP address = " + self.sync_ip)
-            self.client_thread.start()
+            self.ui.client_thread.start()
 
 
     def client_connect_status(self, connect_status):
@@ -292,8 +280,12 @@ class physManager(QWidget):
             self.ui.channel_types = self.ui.params_dict["exp"]["channel_types"]
             config.CHANNEL_TYPES = self.ui.channel_types
             self.ui.channel_plot_colors = self.ui.sw_config_dict["exp"]["channel_plot_colors"][:config.NCHANNELS]
-            self.csv_header = self.ui.channels + ["event_code"]
-            self.writer.writerow(self.csv_header)
+
+            # Initialize file_ops worker here
+            self.ui.fileIO_thread = File_IO(self.ui, config)
+            self.ui.fileIO_thread_created = True
+            self.ui.fileIO_thread.signals.record_signal.connect(self.start_recording)
+            self.threadpool.start(self.ui.fileIO_thread)
 
             # # Place the matplotlib figure
             gv_rect = self.ui.graphicsView.viewport().rect()
@@ -334,30 +326,32 @@ class physManager(QWidget):
                 else:
                     self.ui.biofeedback_enable = False
 
-            self.phys_data_acquisition_thread = dataAcquisition(self.ui, parent=self)
-            self.phys_data_acquisition_thread.data_signal.connect(self.csvWrite_function)
-            self.phys_data_acquisition_thread.data_signal_filt.connect(self.myAnim.addData)
-            self.phys_data_acquisition_thread.time_signal.connect(self.update_time_elapsed)
-            self.phys_data_acquisition_thread.log_signal.connect(self.update_log)
-            self.phys_data_acquisition_thread.stop_signal.connect(self.stop_record_from_thread)
+            self.phys_Acquisition_Obj.initialize_filters(self.ui)
+            self.phys_Acquisition_Obj.signals.data_signal.connect(self.ui.fileIO_thread.csvWrite_function)
+            self.phys_Acquisition_Obj.signals.data_signal_filt.connect(self.myAnim.addData)
+            self.phys_Acquisition_Obj.signals.time_signal.connect(self.update_time_elapsed)
+            self.phys_Acquisition_Obj.signals.log_signal.connect(self.update_log)
+            # self.phys_Acquisition_Obj.signals.stop_signal.connect(self.stop_record_from_thread)
 
             if self.ui.params_dict["exp"]["assess_signal_quality"]:
-                self.phys_data_acquisition_thread.sq_signal.connect(self.ui.sq_inference_thread.add_sq_data)
+                self.phys_Acquisition_Obj.signals.sq_signal.connect(self.ui.sq_inference_thread.add_sq_data)
                 
             if self.ui.biofeedback_enable:
                 self.ui.biofeedback_thread = BioFeedback_Thread(config.SAMPLING_RATE, self.ui.params_dict["biofeedback"], parent=self)
-                
+
+                self.phys_Acquisition_Obj.signals.bf_signal.connect(self.ui.biofeedback_thread.add_bf_data)
+
                 if self.ui.bf_type == "visual":
                     
                     self.ui.tabWidget.setCurrentIndex(1)
 
                     if self.ui.bf_vis_parameter == "size":
-                        self.ui.biofeedback_thread.update_bf_vis_out_int.connect(self.update_bf_visualization_size)
+                        self.ui.biofeedback_thread.signals.update_bf_vis_out_int.connect(self.update_bf_visualization_size)
                     else:
                         color_bar_image = files('PhysioKit2.images').joinpath('color_bar.png')
                         pixmap = QPixmap(color_bar_image)
                         self.ui.label_palette.setPixmap(pixmap)
-                        self.ui.biofeedback_thread.update_bf_vis_out_str.connect(self.update_bf_visualization_color)
+                        self.ui.biofeedback_thread.signals.update_bf_vis_out_str.connect(self.update_bf_visualization_color)
 
                     if self.ui.bf_vis_parameter == "size":
                         img_width = 1280
@@ -381,7 +375,7 @@ class physManager(QWidget):
                         self.ui.label_biofeedback.setStyleSheet("background-color:rgb(127,127,127); border-radius: 10px")
                 
                 elif self.ui.bf_type == "generic_uart":
-                    self.ui.biofeedback_thread.update_bf_generic_out.connect(self.phys_data_acquisition_thread.add_bf_out_signal)
+                    self.ui.biofeedback_thread.signals.update_bf_generic_out.connect(self.phys_Acquisition_Obj.add_bf_out_signal)
 
                 print("Biofeedback Enabled")
 
@@ -398,29 +392,12 @@ class physManager(QWidget):
 
 
 
-    def csvWrite_function(self, value):
-        try:
-            self.writer.writerow(value + [self.ui.write_eventcode])
-        except:
-            print("Error writing data:", value + [self.ui.write_eventcode])
-
     
     def stop_record_process(self):
 
         self.ui.pushButton_record_data.setEnabled(False)
-        if not config.CSVFILE_HANDLE.closed:
-            # time.sleep(0.5)
-            config.CSVFILE_HANDLE.close()
-            # time.sleep(0.5)
-        self.save_file_path = os.path.join(self.ui.data_root_dir, self.ui.pid + "_" +
-                                           self.ui.curr_exp_name + '_' + self.ui.curr_exp_condition + '_' + 
-                                           self.ui.utc_sec + '_' + str(round(np.random.rand(1)[0], 6)).replace('0.', '') + '.csv')
-        if os.path.exists(config.TEMP_FILENAME):
-            shutil.move(config.TEMP_FILENAME, self.save_file_path)
-            self.ui.label_status.setText("Recording stopped and data saved for: Exp - " + self.ui.curr_exp_name + "; Condition - " + self.ui.curr_exp_condition)
-            # time.sleep(0.5)
-        else:
-            self.ui.label_status.setText("Error saving data")
+
+        # set some flag here - for file IO
 
         self.ui.pushButton_record_data.setText("Start Recording")
         self.ui.comboBox_event.setEnabled(False)
@@ -430,11 +407,6 @@ class physManager(QWidget):
             config.MARKER_EVENT_STATUS = False
             self.myAnim.event_toggle = True
 
-        # prepare for next recording
-        config.CSVFILE_HANDLE = open(config.TEMP_FILENAME, 'w', encoding="utf", newline="")
-        self.writer = csv.writer(config.CSVFILE_HANDLE)
-        self.writer.writerow(self.csv_header)
-        self.ui.pushButton_record_data.setEnabled(True)
 
 
     def update_pid(self, text):
@@ -467,9 +439,9 @@ class physManager(QWidget):
 
     def connect_serial_port(self):
         if not self.ui.ser_open_status:
-            self.ui.ser_open_status = self.ui.spObj.connectPort(self.ui.curr_ser_port_name, self.ui.baudrate)
+            self.ui.ser_open_status = self.phys_Acquisition_Obj.connectPort(self.ui.curr_ser_port_name, self.ui.baudrate)
             if self.ui.ser_open_status:
-                self.ui.label_status.setText("Serial port is now connected: " + str(self.ui.spObj.ser))
+                self.ui.label_status.setText("Serial port is now connected: " + str(self.phys_Acquisition_Obj.ser))
                 self.ui.pushButton_connect.setText('Disconnect')
                 if self.ui.exp_loaded:
                     self.ui.pushButton_start_live_acquisition.setEnabled(True)
@@ -477,9 +449,9 @@ class physManager(QWidget):
                 self.ui.label_status.setText("Serial port could not get connected: Please retry")
 
         else:
-            self.ui.spObj.disconnectPort()
+            self.phys_Acquisition_Obj.disconnectPort()
             self.ui.ser_open_status = False
-            self.ui.label_status.setText("Serial port is now disconnected: " + str(self.ui.spObj.ser))
+            self.ui.label_status.setText("Serial port is now disconnected: " + str(self.phys_Acquisition_Obj.ser))
             self.ui.pushButton_connect.setText('Connect')
             self.ui.pushButton_start_live_acquisition.setEnabled(False)
 
@@ -487,12 +459,8 @@ class physManager(QWidget):
     def start_acquisition(self):
         if not config.LIVE_ACQUISITION_FLAG:
             config.LIVE_ACQUISITION_FLAG = True
-            if not self.phys_data_acq_started_flag:
-                # self.phys_data_acquisition_thread = threading.Thread(name='phys_data_acquisition', target=self.phys_data_acquisition, daemon=True)
-                # self.phys_data_acquisition_thread.start()
-                
-                self.phys_data_acquisition_thread.start()
-
+            if not self.phys_data_acq_started_flag:                
+                self.threadpool.start(self.phys_Acquisition_Obj)
                 self.phys_data_acq_started_flag = True
                 self.ui.label_status.setText("Live acquisition started")
 
@@ -500,7 +468,7 @@ class physManager(QWidget):
                     self.ui.sq_inference_thread.start()
 
                 if self.ui.biofeedback_enable:
-                    self.ui.biofeedback_thread.start()
+                    self.threadpool.start(self.ui.biofeedback_thread)
 
             else:
                 self.ui.label_status.setText("Live acquisition started.")
@@ -515,42 +483,13 @@ class physManager(QWidget):
             # To reset the graph and clear the values
             
             self.myAnim.reset_draw()
-            if os.path.exists(config.TEMP_FILENAME):
-                if not config.CSVFILE_HANDLE.closed:
-                    config.CSVFILE_HANDLE.close()
-                os.remove(config.TEMP_FILENAME)
-
-            config.CSVFILE_HANDLE = open(config.TEMP_FILENAME, 'w', encoding="utf", newline="")
-            self.writer = csv.writer(config.CSVFILE_HANDLE)
-            self.writer.writerow(self.csv_header)
+            self.ui.fileIO_thread.reset_temp_file = True
 
             config.LIVE_ACQUISITION_FLAG = False
             self.ui.pushButton_record_data.setEnabled(False)
             self.ui.pushButton_start_live_acquisition.setText('Start Live Acquisition')
 
             self.ui.listWidget_expConditions.setEnabled(True)
-
-
-    def start_record_process(self):
-        sync_comm = Server_Sync()
-        sync_comm.record_signal.connect(self.start_recording)
-
-        if not os.path.exists(config.TEMP_FILENAME):
-            config.CSVFILE_HANDLE = open(config.TEMP_FILENAME, 'w', encoding="utf", newline="")
-            self.writer = csv.writer(config.CSVFILE_HANDLE)
-            self.writer.writerow(self.csv_header)
-
-        sync_signal = False
-        if self.ext_sync_flag:
-            if self.sync_role == "server":
-                self.server_thread.send_sync_to_client()
-                sync_signal = True
-                sync_comm.record_signal.emit(sync_signal)
-            else:
-                self.client_thread.wait_for_sync = True
-        else:
-            sync_signal = True
-            sync_comm.record_signal.emit(sync_signal)
 
 
     def start_recording(self, start_signal):
@@ -585,25 +524,30 @@ class physManager(QWidget):
             # self.ui.pushButton_record_data.setEnabled(True)
             self.ui.pushButton_sync.setEnabled(True)
 
+
     def record_data(self):
-        self.ui.pushButton_record_data.setText("Waiting")
-        self.ui.pushButton_record_data.setEnabled(False)
 
         if not self.ui.data_record_flag:
-            start_record_thread = threading.Thread(name='start_record', target=self.start_record_process, daemon=True)
-            start_record_thread.start()
+            if self.ext_sync_flag:
+                self.ui.pushButton_record_data.setText("Waiting")
+                self.ui.pushButton_record_data.setEnabled(False)
+                self.ui.fileIO_thread.wait_for_external_sync = True
+            self.ui.fileIO_thread.start_recording = True
+            # start_record_thread = threading.Thread(name='start_record', target=self.start_record_process, daemon=True)
+            # start_record_thread.start()
 
         else:
             self.ui.data_record_flag = False
-            stop_record_thread = threading.Thread(name='stop_record', target=self.stop_record_process, daemon=True)
-            stop_record_thread.start()
+            self.ui.fileIO_thread.stop_recording = True
+            # stop_record_thread = threading.Thread(name='stop_record', target=self.stop_record_process, daemon=True)
+            # stop_record_thread.start()
 
 
-    def stop_record_from_thread(self, stop_signal):
-        if stop_signal:
-            self.ui.data_record_flag = False
-            stop_record_thread = threading.Thread(name='stop_record', target=self.stop_record_process, daemon=True)
-            stop_record_thread.start()
+    # def stop_record_from_thread(self, stop_signal):
+    #     if stop_signal:
+    #         self.ui.data_record_flag = False
+    #         stop_record_thread = threading.Thread(name='stop_record', target=self.stop_record_process, daemon=True)
+    #         stop_record_thread.start()
 
     def update_time_elapsed(self, elapsed_time):
         if self.ui.timed_acquisition:
@@ -626,168 +570,6 @@ class physManager(QWidget):
     def update_bf_visualization_color(self, color):
         self.ui.label_biofeedback.setStyleSheet(color)
 
-
-
-class dataAcquisition(QThread):
-    """
-        The class to handle incoming data stream from Arduino
-    """
-    data_signal = Signal(list)
-    data_signal_filt = Signal(list)
-    sq_signal = Signal(list)
-    bf_signal = Signal(float)
-    time_signal = Signal(int)
-    log_signal = Signal(str)
-    stop_signal = Signal(bool)
-
-    def __init__(self, uiObj, parent):
-        super(dataAcquisition, self).__init__(parent=parent)
-
-        self.ui = uiObj
-        self.stop_flag = False
-        self.filt_objs = {}
-        self.eda_moving_average_window_size = int(config.SAMPLING_RATE/4.0)
-
-        self.resp_lowcut = 0.1
-        self.resp_highcut = 0.5
-        self.ppg_lowcut = 0.5
-        self.ppg_highcut = 3.5
-        self.filt_order = 2
-
-        self.bf_out_flag = False
-
-        for nCh in range(config.NCHANNELS):
-            if self.ui.channel_types[nCh] == 'eda':
-                self.filt_objs[str(nCh)] = lFilter_moving_average(window_size=self.eda_moving_average_window_size)
-            elif self.ui.channel_types[nCh] == 'resp':
-                self.filt_objs[str(nCh)] = lFilter(self.resp_lowcut, self.resp_highcut, config.SAMPLING_RATE, order=self.filt_order)
-            elif self.ui.channel_types[nCh] == 'ppg':
-                self.filt_objs[str(nCh)] = lFilter(self.ppg_lowcut, self.ppg_highcut, config.SAMPLING_RATE, order=self.filt_order)
-
-
-    def add_bf_out_signal(self, val):
-        # self.bf_out_str = str(int(val))
-        self.bf_out_str = val
-        # print(self.bf_out_str)
-        self.bf_out_flag = True
-
-
-    def stop(self):
-        self.stop_flag = True
-        self.terminate()
-        print("Data acquisition thread terminated...")
-
-
-    def run(self):
-        
-        if self.ui.biofeedback_enable:
-            self.bf_signal.connect(self.ui.biofeedback_thread.add_bf_data)
-
-        value = []
-        value_filt = []
-        buffersize = (config.NCHANNELS)*4*bytes.__sizeof__(bytes()) + 2*bytes.__sizeof__(bytes())    #4 sensor unsigned int and 1 tsVal unsigned long => 5 * 4 bytes + 2 bytes for \r\n
-        prev_elapsed_time = 0
-        curr_elapsed_time = 0
-
-        while not self.stop_flag:
-            if config.LIVE_ACQUISITION_FLAG and self.ui.spObj.ser.is_open:
-                #Read data from serial port
-                try:
-                    if self.bf_out_flag:
-                        # if "win" in config.OS_NAME:
-                        #     bf_key = 'o'
-                        #     if self.bf_out_str != '0':
-                        #         bf_key = 'i'
-                        #     else:
-                        #         bf_key = 'o'
-                        #     # print(self.bf_out_str)
-                        #     keyboard.write(bf_key)
-                        self.ui.spObj.ser.write(self.bf_out_str.encode())                            
-                        self.bf_out_flag = False
-
-                    serial_data = self.ui.spObj.ser.readline(buffersize)
-                    serial_data = serial_data.split(b'\r\n')
-                    serial_data = serial_data[0].split(b',')
-                    #print(serial_data)
-                except Exception as e:
-                    serial_data = []
-                    print("Exception:", e)
-                    time.sleep(0.1)
-
-                try:
-                    value = []
-                    value_filt = []     #filt value update can be done at lower rate to optimize performance in future
-                    for nCh in range(config.NCHANNELS):
-                        serial_val = int(serial_data[nCh])
-                        value.append(serial_val)
-                        value_filt.append(self.filt_objs[str(nCh)].lfilt(serial_val))
-
-                    # serial_val = int(serial_data[config.NCHANNELS])
-                    # value.append(serial_val)
-
-                    if self.ui.data_record_flag:
-                        elapsed_time = (datetime.now() - self.ui.record_start_time).total_seconds()*1000
-                        if self.ui.timed_acquisition:
-                            if (elapsed_time >= self.ui.curr_acquisition_time_ms):
-                                self.ui.data_record_flag = False
-                                self.stop_signal.emit(True)
-                                prev_elapsed_time = 0
-                                curr_elapsed_time = 0
-                                
-                            else:
-                                self.data_signal.emit(value)
-                                curr_elapsed_time = int(round(elapsed_time/1000.0, 0))
-                                if prev_elapsed_time < curr_elapsed_time:
-                                    prev_elapsed_time = curr_elapsed_time
-                                    self.time_signal.emit(curr_elapsed_time)
-
-                        else:
-                            self.data_signal.emit(value)
-
-                            curr_elapsed_time = int(round(elapsed_time/1000.0, 0))
-                            if prev_elapsed_time < curr_elapsed_time:
-                                prev_elapsed_time = curr_elapsed_time
-                                self.time_signal.emit(curr_elapsed_time)
-                    else:
-                        prev_elapsed_time = 0
-                        curr_elapsed_time = 0
-
-                    self.data_signal_filt.emit(value_filt)
-                    if "ppg" in config.CHANNEL_TYPES:
-                        filt_val = [0, 0]
-                        fv_count = 0
-                        for idx in self.ui.ppg_sq_indices:
-                            filt_val[fv_count] = value_filt[idx]
-                            fv_count += 1
-                        self.sq_signal.emit(filt_val)
-                    if self.ui.biofeedback_enable:
-                        self.bf_signal.emit(value_filt[self.ui.bf_ch_index])
-
-                    time.sleep(0.001)
-
-                except Exception as e:
-                    try:
-                        self.ui.spObj.ser.reset_output_buffer()
-                        self.ui.spObj.ser.reset_input_buffer()
-                        assert len(serial_data) == (config.NCHANNELS)  #data channels + time_stamp
-                        print('Serial data', serial_data)
-                        print("Exception:", e)
-                        time.sleep(0.1)
-                    except:
-                        print('Mismatch in the number of channels specified in JSON file and the serial data received from Arduino or microcontroller')
-                        time.sleep(0.1)
-
-            else:
-                if self.ui.spObj.ser.is_open:
-                    self.ui.spObj.ser.reset_output_buffer()
-                    self.ui.spObj.ser.reset_input_buffer()
-                if self.ui.data_record_flag:
-                     self.log_signal.emit("Data not recording. Check serial port connection and retry...")
-
-                if not config.HOLD_ACQUISITION_THREAD:
-                    break
-                else:
-                    time.sleep(1)
 
 
 
