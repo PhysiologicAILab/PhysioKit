@@ -7,7 +7,7 @@
         "channel_types": ["resp"],
         "timed_acquisition": true,
         "assess_signal_quality": false,
-        "max_time_seconds": [180, 180],
+        "max_time_seconds": [180],
         "datapath": "data",
         "event_codes": {
             "0": "event_1",
@@ -20,6 +20,7 @@
         "metric": "RSP",
         "window": 0.2,
         "step": 0.1,
+        "modulation_threshold": 225,
         "mapping": "linear_increase",
         "type": "visual",
         "visual_feedback": {

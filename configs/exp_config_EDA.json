@@ -20,6 +20,7 @@
         "metric": "SCR_Magnitude",
         "window": 10,
         "step": 1,
+        "modulation_threshold": 10,
         "mapping": "linear_increase",
         "type": "visual",
         "visual_feedback": {

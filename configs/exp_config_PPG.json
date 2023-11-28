@@ -7,7 +7,7 @@
         "channel_types": ["ppg"],
         "timed_acquisition": true,
         "assess_signal_quality": true,
-        "max_time_seconds": [180, 180],
+        "max_time_seconds": [180],
         "datapath": "data",
         "event_codes": {
             "0": "event_1",
@@ -20,6 +20,7 @@
         "metric": "HRV_MeanNN",
         "window": 10,
         "step": 1,
+        "modulation_threshold": 2,
         "mapping": "linear_increase",
         "type": "visual",
         "visual_feedback": {

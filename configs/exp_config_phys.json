@@ -22,6 +22,7 @@
         "metric": "HRV_MeanNN",
         "window": 10,
         "step": 1,
+        "modulation_threshold": 2,
         "mapping": "linear_increase",
         "type": "visual",
         "visual_feedback": {
