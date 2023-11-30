@@ -37,22 +37,24 @@ class BioFeedback_Thread(QThread):
         self.win_samples = int(self.fs * self.window_len)
         self.step_samples = int(self.fs * self.step_len)
         self.bf_signal = np.zeros(self.win_samples)
-        if self.bf_signal_type == "RSP":
-            self.normalizing_samples = int(self.fs * 6)
-            self.bf_signal_for_norm = np.zeros(self.normalizing_samples)
+
         self.count_step = 0
         self.count_init_window = 0
         self.init_window_filled = False
         self.process_flag = False
         self.set_baseline = True
-        self.max_bf_signal = 1
-        self.min_bf_signal = 0
-        self.bf_threshold = float(bf_dict["modulation_threshold"])
-        self.resp_bf_max_val = 150
-        self.resp_bf_min_val = 70
-        self.resp_bf_off = 0
 
-        if self.bf_signal_type == "PPG":
+        if self.bf_signal_type == "RSP":
+            self.normalizing_samples = int(self.fs * 6)
+            self.bf_signal_for_norm = np.zeros(self.normalizing_samples)
+            self.bf_threshold = float(bf_dict["modulation_threshold"])
+            self.max_bf_signal = 1
+            self.min_bf_signal = 0
+            self.resp_bf_max_val = 150
+            self.resp_bf_min_val = 70
+            self.resp_bf_off = 0
+    
+        elif self.bf_signal_type == "PPG":
             self.ppg_metrics = {}
             self.ppg_metrics[self.bf_metric] = 0
             self.ppg_metrics["baseline"] = np.array([0, 0, 0, 0, 0, 0, 0, 0, 0, 0], dtype=np.float32)
@@ -116,6 +118,9 @@ class BioFeedback_Thread(QThread):
                 # try:
                 if self.bf_signal_type == "PPG":
                     self.ppg_proc_signals, self.ppg_info = nk.ppg_process(self.bf_signal, sampling_rate=self.fs)
+                    if len(self.ppg_info['PPG_Peaks'] < 3):
+                        print("number of peaks", len(self.ppg_info['PPG_Peaks']))
+                        continue
                     hrv_indices = nk.hrv_time(self.ppg_info['PPG_Peaks'])
                     self.ppg_metrics[self.bf_metric] = hrv_indices[self.bf_metric][0]
                     print("metrics:", hrv_indices[self.bf_metric][0])

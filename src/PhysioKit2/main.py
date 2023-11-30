@@ -708,7 +708,12 @@ class PlotAnimation(TimedAnimation):
             for nCh in range(self.nChannels):
                 mx = np.max(self.plot_signals[nCh])
                 mn = np.min(self.plot_signals[nCh])
-                sig = (self.plot_signals[nCh] - mn)/(mx - mn)
+                if (mx - mx) > 0:
+                    sig = (self.plot_signals[nCh] - mn)/(mx - mn)
+                elif mx > 0:
+                    sig = (self.plot_signals[nCh] - mn)/(mx)
+                else:
+                    sig = (self.plot_signals[nCh] - mn)
                 self.lines[str(nCh)].set_ydata(sig)
                 if self.sq_flag and self.channel_types[nCh] == "ppg":
                     self.sq_images[str(nCh)].set_data(self.sq_vecs[nCh])
