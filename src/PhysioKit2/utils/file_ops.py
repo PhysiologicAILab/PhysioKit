@@ -1,4 +1,4 @@
-from PySide6.QtCore import Signal, QObject, QRunnable, Slot
+from PySide6.QtCore import Signal, QObject, QThread
 import time
 from datetime import datetime
 import csv
@@ -14,7 +14,7 @@ class Data_Signals(QObject):
     record_signal = Signal(bool)
 
 
-class File_IO(QRunnable):
+class File_IO(QThread):
     """
         The class to handle file operations
     """
@@ -50,8 +50,11 @@ class File_IO(QRunnable):
         except:
             print("Error writing data:", value + [self.ui.write_eventcode])
 
+    def stop(self):
+        self.stop_flag = True
+        self.terminate()
+        print("FileIO thread terminated...")
 
-    @Slot()
     def run(self):
         while not self.stop_flag:
             # pass

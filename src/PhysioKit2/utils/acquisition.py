@@ -1,4 +1,4 @@
-from PySide6.QtCore import Signal, QObject, QRunnable, Slot
+from PySide6.QtCore import Signal, QObject, QThread
 from PhysioKit2.utils.data_processing_lib import lFilter, lFilter_moving_average
 import time
 from datetime import datetime
@@ -16,7 +16,7 @@ class Data_Signals(QObject):
     # stop_signal = Signal(bool)
 
 
-class Data_Acquisition_Thread(QRunnable):
+class Data_Acquisition_Thread(QThread):
     """
         The class to handle incoming data stream from Arduino
     """
@@ -40,6 +40,12 @@ class Data_Acquisition_Thread(QRunnable):
         self.ser = serial.Serial()
         self.timeout = None  # specify timeout when using readline()
         self.ports = lp.comports()
+
+
+    def stop(self):
+        self.stop_flag = True
+        self.terminate()
+        print("Acquisition thread terminated...")
 
 
     def initialize_filters(self, uiObj):
@@ -83,7 +89,6 @@ class Data_Acquisition_Thread(QRunnable):
         self.bf_out_flag = True
 
 
-    @Slot()
     def run(self):
         value = []
         value_filt = []

@@ -1,7 +1,6 @@
-from socket import SHUT_RDWR
 import socket
 import threading
-from PySide6.QtCore import Signal, QThread, Signal, QRunnable, Slot
+from PySide6.QtCore import Signal, QThread, Signal
 import time
 
 class ServerThread(QThread):

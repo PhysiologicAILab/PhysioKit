@@ -1,3 +1,10 @@
+from matplotlib import use
+use("AGG")
+import matplotlib.pyplot as plt
+from matplotlib.figure import Figure
+from matplotlib.animation import TimedAnimation
+from matplotlib.backends.backend_qtagg import FigureCanvasQTAgg as FigureCanvas
+
 import os
 import sys
 os.environ["PYSIDE_DESIGNER_PLUGINS"] = '.'
@@ -13,8 +20,8 @@ from datetime import datetime
 
 import cv2
 from copy import deepcopy
-import faulthandler
-faulthandler.enable()
+# import faulthandler
+# faulthandler.enable()
 
 from PhysioKit2.utils.external_sync import ServerThread, ClientThread
 from PhysioKit2.utils.acquisition import Data_Acquisition_Thread
@@ -24,17 +31,13 @@ from PhysioKit2.utils import config
 from PhysioKit2.sqa.inference_thread import sqaPPGInference
 
 from PySide6.QtWidgets import QApplication, QWidget, QGraphicsScene, QFileDialog
-from PySide6.QtCore import QFile, Qt, QThreadPool
+from PySide6.QtCore import QFile, Qt
 from PySide6.QtUiTools import QUiLoader
 from PySide6.QtGui import QPixmap, QImage
 
-import warnings
-warnings.filterwarnings("ignore")
+# import warnings
+# warnings.filterwarnings("ignore")
 
-from matplotlib.backends.backend_qtagg import FigureCanvasQTAgg as FigureCanvas
-from matplotlib.animation import TimedAnimation
-from matplotlib.figure import Figure
-import matplotlib.pyplot as plt
 
 # if "win" in config.OS_NAME:
 #     import keyboard
@@ -55,9 +58,6 @@ class physManager(QWidget):
         ui_file.open(QFile.ReadOnly)
         self.ui = loader.load(ui_file, self)
         self.ui.graphicsView.viewport().setAttribute(Qt.WidgetAttribute.WA_AcceptTouchEvents, False)
-        
-        self.threadpool = QThreadPool()
-        # print("Multithreading with maximum %d threads" % self.threadpool.maxThreadCount())
 
         pixmap = QPixmap(files('PhysioKit2.images').joinpath('banner.png'))
         self.ui.label.setPixmap(pixmap)
@@ -167,8 +167,8 @@ class physManager(QWidget):
         config.HOLD_ACQUISITION_THREAD = False
 
         if self.phys_data_acq_started_flag:
-            if not self.phys_Acquisition_Obj.stop_flag:
-                self.phys_Acquisition_Obj.stop_flag = True
+            if self.phys_Acquisition_Obj.isRunning():
+                self.phys_Acquisition_Obj.stop()
 
         if config.ANIM_RUNNING:
             TimedAnimation._stop(self.myAnim)
@@ -179,12 +179,12 @@ class physManager(QWidget):
                 self.ui.sq_inference_thread.stop()
 
         if self.ui.biofeedback_enable:
-            if not self.ui.biofeedback_thread.stop_flag:
-                self.ui.biofeedback_thread.stop_flag = True
+            if self.ui.biofeedback_thread.isRunning():
+                self.ui.biofeedback_thread.stop()
 
         if self.ui.fileIO_thread_created:
-            if not self.ui.fileIO_thread.stop_flag:
-                self.ui.fileIO_thread.stop_flag = True
+            if not self.ui.fileIO_thread.isRunning():
+                self.ui.fileIO_thread.stop()
 
         if self.ext_sync_flag:
             if self.sync_role == "server":
@@ -285,7 +285,8 @@ class physManager(QWidget):
             self.ui.fileIO_thread = File_IO(self.ui, config)
             self.ui.fileIO_thread_created = True
             self.ui.fileIO_thread.signals.record_signal.connect(self.start_recording)
-            self.threadpool.start(self.ui.fileIO_thread)
+
+            self.ui.fileIO_thread.start()
 
             # # Place the matplotlib figure
             gv_rect = self.ui.graphicsView.viewport().rect()
@@ -460,7 +461,7 @@ class physManager(QWidget):
         if not config.LIVE_ACQUISITION_FLAG:
             config.LIVE_ACQUISITION_FLAG = True
             if not self.phys_data_acq_started_flag:                
-                self.threadpool.start(self.phys_Acquisition_Obj)
+                self.phys_Acquisition_Obj.start()
                 self.phys_data_acq_started_flag = True
                 self.ui.label_status.setText("Live acquisition started")
 
@@ -468,7 +469,7 @@ class physManager(QWidget):
                     self.ui.sq_inference_thread.start()
 
                 if self.ui.biofeedback_enable:
-                    self.threadpool.start(self.ui.biofeedback_thread)
+                    self.ui.biofeedback_thread.start()
 
             else:
                 self.ui.label_status.setText("Live acquisition started.")
