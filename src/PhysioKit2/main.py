@@ -1,15 +1,15 @@
 import matplotlib
-# Check the operating system
-import platform
-if platform.system() == 'Darwin':  # macOS
-    # matplotlib.use('macosx')
-    # from matplotlib.backends.backend_macosx import FigureCanvasMac as FigureCanvas
-    matplotlib.use('Agg')
-    from matplotlib.backends.backend_qtagg import FigureCanvasQTAgg as FigureCanvas
-else:
-    matplotlib.use('Qt5Agg')
-    from matplotlib.backends.backend_qt5agg import FigureCanvasQTAgg as FigureCanvas
+matplotlib.use('Agg')
+from matplotlib.backends.backend_qtagg import FigureCanvasQTAgg as FigureCanvas
 
+# # Check the operating system
+# import platform
+# if platform.system() == 'Darwin':  # macOS
+#     matplotlib.use('macosx')
+#     from matplotlib.backends.backend_macosx import FigureCanvasMac as FigureCanvas
+# else:
+#     matplotlib.use('Qt5Agg')
+#     from matplotlib.backends.backend_qt5agg import FigureCanvasQTAgg as FigureCanvas
 
 import matplotlib.pyplot as plt
 from matplotlib.figure import Figure
