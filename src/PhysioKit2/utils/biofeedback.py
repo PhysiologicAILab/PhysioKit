@@ -46,7 +46,7 @@ class BioFeedback_Thread(QThread):
 
         if self.bf_signal_type == "RSP":
             self.normalizing_samples = int(self.fs * 6)
-            self.bf_signal_for_norm = np.zeros(self.normalizing_samples)
+            self.norm_bf_signal = np.zeros(self.normalizing_samples)
             self.bf_threshold = float(bf_dict["modulation_threshold"])
             self.max_bf_signal = 1
             self.min_bf_signal = 0
@@ -81,18 +81,19 @@ class BioFeedback_Thread(QThread):
         self.bf_signal[-1] = sig_val
 
         if self.bf_signal_type == "RSP":
-            self.bf_signal_for_norm = np.roll(self.bf_signal_for_norm, -1)
-            self.bf_signal_for_norm[-1] = sig_val
+            self.norm_bf_signal = np.roll(self.norm_bf_signal, -1)
+            self.norm_bf_signal[-1] = sig_val
                 
         if not self.init_window_filled:
             self.count_init_window += 1
             if self.count_init_window >= self.win_samples:
                 self.init_window_filled = True
                 self.process_flag = True
+
                 if self.bf_signal_type == "RSP":
-                    mx = np.max(self.bf_signal_for_norm)
-                    mn = np.min(self.bf_signal_for_norm)
-                    if mx - mn > self.bf_threshold:
+                    mx = np.max(self.norm_bf_signal)
+                    mn = np.min(self.norm_bf_signal)
+                    if np.abs(mx - mn) > self.bf_threshold:
                         self.max_bf_signal = mx
                         self.min_bf_signal = mn
                     else:
@@ -104,10 +105,10 @@ class BioFeedback_Thread(QThread):
                 self.process_flag = True
                 self.count_step = 0
                 if self.bf_signal_type == "RSP":
-                    mx = np.max(self.bf_signal_for_norm)
-                    mn = np.min(self.bf_signal_for_norm)
+                    mx = np.max(self.norm_bf_signal)
+                    mn = np.min(self.norm_bf_signal)
                     # print("mx-mn", mx - mn)
-                    if mx - mn > self.bf_threshold:
+                    if np.abs(mx - mn) > self.bf_threshold:
                         self.max_bf_signal = mx
                         self.min_bf_signal = mn
 
@@ -117,11 +118,13 @@ class BioFeedback_Thread(QThread):
                 self.process_flag = False
                 try:
                     if self.bf_signal_type == "PPG":
-                        self.ppg_proc_signals, self.ppg_info = nk.ppg_process(self.bf_signal, sampling_rate=self.fs)
-                        # print("self.ppg_info['PPG_Peaks']", self.ppg_info['PPG_Peaks'])
-                        if len(self.ppg_info['PPG_Peaks'] > 3):
-                            # print("number of peaks", len(self.ppg_info['PPG_Peaks']))
-                            hrv_indices = nk.hrv_time(self.ppg_info['PPG_Peaks'])
+                        # ppg_proc_signals, ppg_info = nk.ppg_process(self.bf_signal, sampling_rate=self.fs)
+                        clean_ppg = nk.ppg_clean(self.bf_signal, sampling_rate=self.fs)
+                        ppg_info = nk.ppg_findpeaks(clean_ppg, sampling_rate=self.fs)
+                        # print("ppg_info['PPG_Peaks']", ppg_info['PPG_Peaks'])
+                        if (np.max(ppg_info['PPG_Peaks'].shape) > 1):
+                            # print("number of peaks", len(ppg_info['PPG_Peaks']))
+                            hrv_indices = nk.hrv_time(ppg_info['PPG_Peaks'])
                             self.ppg_metrics[self.bf_metric] = hrv_indices[self.bf_metric][0]
                             print("metrics:", hrv_indices[self.bf_metric][0])
                         
@@ -136,7 +139,7 @@ class BioFeedback_Thread(QThread):
                             self.ppg_metrics["percent_change"] = np.roll(self.ppg_metrics["percent_change"], -1)
                             baseline =  [d for d in self.ppg_metrics["baseline"] if d != 0]
                             baseline = np.mean(baseline)
-                            if abs(baseline) > 0:
+                            if np.abs(baseline) > 1e-6:
                                 new_val = 1 + 5.0*(float(self.ppg_metrics[self.bf_metric] - baseline) / baseline)
                             else:
                                 new_val = 1 + 5.0*(float(self.ppg_metrics[self.bf_metric] - baseline))

@@ -45,10 +45,11 @@ class File_IO(QThread):
 
 
     def csvWrite_function(self, value):
-        try:
-            self.writer.writerow(value + [self.ui.write_eventcode])
-        except:
-            print("Error writing data:", value + [self.ui.write_eventcode])
+        if not self.stop_flag:
+            try:
+                self.writer.writerow(value + [self.ui.write_eventcode])
+            except:
+                print("Error writing data:", value + [self.ui.write_eventcode])
 
     def stop(self):
         self.stop_flag = True

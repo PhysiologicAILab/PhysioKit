@@ -20,8 +20,8 @@ from datetime import datetime
 
 import cv2
 from copy import deepcopy
-# import faulthandler
-# faulthandler.enable()
+import faulthandler
+faulthandler.enable()
 
 from PhysioKit2.utils.external_sync import ServerThread, ClientThread
 from PhysioKit2.utils.acquisition import Data_Acquisition_Thread
@@ -683,7 +683,7 @@ class PlotAnimation(TimedAnimation):
     def addData(self, value):
         for nCh in range(self.nChannels):
             self.plot_signals[nCh] = np.roll(self.plot_signals[nCh], -1)
-            self.plot_signals[nCh][-1] = abs(value[nCh])
+            self.plot_signals[nCh][-1] = value[nCh]
         return
 
 
@@ -707,7 +707,7 @@ class PlotAnimation(TimedAnimation):
             for nCh in range(self.nChannels):
                 mx = np.max(self.plot_signals[nCh])
                 mn = np.min(self.plot_signals[nCh])
-                if (mx - mx) > 0:
+                if np.abs(mx - mx) > 1e-6:
                     sig = (self.plot_signals[nCh] - mn)/(mx - mn)
                 else:
                     sig = (self.plot_signals[nCh])
