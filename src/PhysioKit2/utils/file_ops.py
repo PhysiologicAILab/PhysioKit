@@ -52,6 +52,13 @@ class File_IO(QThread):
 
     def stop(self):
         self.stop_flag = True
+        time.sleep(1)
+        # On closing of the thread
+        if os.path.exists(self.config.TEMP_FILENAME):
+            if not self.config.CSVFILE_HANDLE.closed:
+                self.config.CSVFILE_HANDLE.close()
+            time.sleep(0.2)
+            os.remove(self.config.TEMP_FILENAME)
         self.terminate()
         print("FileIO thread terminated...")
 
@@ -96,16 +103,16 @@ class File_IO(QThread):
                 self.ui.pushButton_sync.setEnabled(True)
 
                 if not self.config.CSVFILE_HANDLE.closed:
-                    # time.sleep(0.5)
+                    time.sleep(0.5)
                     self.config.CSVFILE_HANDLE.close()
-                    # time.sleep(0.5)
+                    time.sleep(0.5)
                 self.save_file_path = os.path.join(self.ui.data_root_dir, self.ui.pid + "_" +
                                                 self.ui.curr_exp_name + '_' + self.ui.curr_exp_condition + '_' + 
                                                 self.ui.utc_sec + '_' + str(round(np.random.rand(1)[0], 6)).replace('0.', '') + '.csv')
                 if os.path.exists(self.config.TEMP_FILENAME):
                     shutil.move(self.config.TEMP_FILENAME, self.save_file_path)
                     self.ui.label_status.setText("Recording stopped and data saved for: Exp - " + self.ui.curr_exp_name + "; Condition - " + self.ui.curr_exp_condition)
-                    # time.sleep(0.5)
+                    time.sleep(0.5)
                 else:
                     self.ui.label_status.setText("Error saving data")
 
@@ -129,11 +136,4 @@ class File_IO(QThread):
                 self.reset_temp_file = False
 
             else:
-                time.sleep(1)
-
-        # On closing of the thread
-        if os.path.exists(self.config.TEMP_FILENAME):
-            if not self.config.CSVFILE_HANDLE.closed:
-                self.config.CSVFILE_HANDLE.close()
-            # time.sleep(0.2)
-            os.remove(self.config.TEMP_FILENAME)        
+                time.sleep(0.5)     

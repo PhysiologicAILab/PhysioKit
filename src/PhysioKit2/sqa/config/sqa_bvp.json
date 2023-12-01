@@ -1,8 +1,8 @@
 {
     "data":{
-        "target_fs": 32,
-        "window_len_sec": 10,
-        "sq_resolution_sec": 0.5
+        "target_fs": 30,
+        "window_len_sec": 5,
+        "sq_resolution_sec": 0
     },
     "train_params": {
         "kernel_size": [
@@ -14,19 +14,18 @@
     "model_params": {
         "INPUT_CHANNELS": 1,
         "MD_S": 1,
-        "MD_D": 20,
-        "MD_R": 10,
+        "MD_D": 24,
+        "MD_R": 16,
         "TRAIN_STEPS": 6,
         "EVAL_STEPS": 6,
         "INV_T": 1,
         "ETA": 0.9,
         "RAND_INIT": true,
-        "CHANNELS": 512,
         "VERSION": "V2",
         "HAM_TYPE": "NMF",
         "DUAL": false,
         "CHEESE_FACTOR": 1,
         "ZERO_HAM": true
     },
-    "ckpt_name": "sqa_ppg.pth"
+    "ckpt_name": "sqa_bvp.pth"
 }

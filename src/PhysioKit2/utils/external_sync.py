@@ -22,6 +22,7 @@ class ServerThread(QThread):
 
     def stop(self):
         self.stop_flag = True
+        time.sleep(1)
         self.terminate()
         print("Server thread terminated...")
 

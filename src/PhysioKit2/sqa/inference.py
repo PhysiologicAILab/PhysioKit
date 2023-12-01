@@ -9,7 +9,7 @@ import torch.nn as nn
 import matplotlib.pyplot as plt
 from scipy import signal
 
-from PhysioKit2.sqa.model.sqa_ppg import Model as sqPPG
+from PhysioKit2.sqa.model.sqa_bvp import Model as sqPPG
 from importlib.resources import files
 
 class sqaPPGInference(object):
@@ -39,7 +39,7 @@ class sqaPPGInference(object):
 
         self.sq_resolution = self.model_config["data"]["sq_resolution_sec"]
 
-        self.sqPPG_model = sqPPG(self.model_config).to(self.device)
+        self.sqPPG_model = sqPPG(self.device, self.model_config).to(self.device)
         ckpt_path = files('PhysioKit2.sqa.ckpt').joinpath(self.model_config["ckpt_name"])
         if os.path.exists(ckpt_path):
             checkpoint = torch.load(ckpt_path, map_location=self.device)

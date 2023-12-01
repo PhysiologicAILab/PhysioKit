@@ -44,6 +44,7 @@ class Data_Acquisition_Thread(QThread):
 
     def stop(self):
         self.stop_flag = True
+        time.sleep(1)
         self.terminate()
         print("Acquisition thread terminated...")
 

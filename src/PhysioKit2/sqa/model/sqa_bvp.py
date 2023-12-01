@@ -6,7 +6,7 @@ from torch.nn.modules.batchnorm import _BatchNorm
 
 
 class _MatrixDecomposition1DBase(nn.Module):
-    def __init__(self, model_config):
+    def __init__(self, device, model_config):
         super().__init__()
 
         self.S = model_config["model_params"]["MD_S"]
@@ -20,8 +20,7 @@ class _MatrixDecomposition1DBase(nn.Module):
         self.eta = model_config["model_params"]["ETA"]
 
         self.rand_init = model_config["model_params"]["RAND_INIT"]
-        self.cuda = torch.cuda.is_available()
-        self.device = "cuda" if self.cuda else "cpu"
+        self.device = device
 
         # print('spatial', self.spatial)
         # print('S', self.S)
@@ -33,7 +32,7 @@ class _MatrixDecomposition1DBase(nn.Module):
         # print('eta', self.eta)
         # print('rand_init', self.rand_init)
 
-    def _build_bases(self, B, S, D, R, cuda=False):
+    def _build_bases(self, B, S, D, R):
         raise NotImplementedError
 
     def local_step(self, x, bases, coef):
@@ -63,12 +62,12 @@ class _MatrixDecomposition1DBase(nn.Module):
         x = x.view(B * self.S, D, N)
 
         if not self.rand_init and not hasattr(self, 'bases'):
-            bases = self._build_bases(1, self.S, D, self.R, cuda=self.cuda)
+            bases = self._build_bases(1, self.S, D, self.R)
             self.register_buffer('bases', bases)
 
         # (S, D, R) -> (B * S, D, R)
         if self.rand_init:
-            bases = self._build_bases(B, self.S, D, self.R, cuda=self.cuda)
+            bases = self._build_bases(B, self.S, D, self.R)
         else:
             bases = self.bases.repeat(B, 1, 1)
 
@@ -103,17 +102,13 @@ class _MatrixDecomposition1DBase(nn.Module):
 
 
 class NMF1D(_MatrixDecomposition1DBase):
-    def __init__(self, args):
-        super().__init__(args)
-
+    def __init__(self, device, model_config):
+        super().__init__(device, model_config)
+        self.device = device
         self.inv_t = 1
 
-    def _build_bases(self, B, S, D, R, cuda=False):
-        if cuda:
-            bases = torch.rand((B * S, D, R)).cuda()
-        else:
-            bases = torch.rand((B * S, D, R))
-
+    def _build_bases(self, B, S, D, R):
+        bases = torch.rand((B * S, D, R)).to(self.device)
         bases = F.normalize(bases, dim=1)
 
         return bases
@@ -147,11 +142,66 @@ class NMF1D(_MatrixDecomposition1DBase):
         return coef
 
 
+class VQ1D(_MatrixDecomposition1DBase):
+    def __init__(self, device, model_config):
+        super().__init__(device, model_config)
+        self.device = device
+
+    def _build_bases(self, B, S, D, R):
+        bases = torch.randn((B * S, D, R)).to(self.device)
+        bases = F.normalize(bases, dim=1)
+
+        return bases
+
+    @torch.no_grad()
+    def local_step(self, x, bases, _):
+        # (B * S, D, N), normalize x along D (for cosine similarity)
+        std_x = F.normalize(x, dim=1)
+
+        # (B * S, D, R), normalize bases along D (for cosine similarity)
+        std_bases = F.normalize(bases, dim=1, eps=1e-6)
+
+        # (B * S, D, N)^T @ (B * S, D, R) -> (B * S, N, R)
+        coef = torch.bmm(std_x.transpose(1, 2), std_bases)
+
+        # softmax along R
+        coef = F.softmax(self.inv_t * coef, dim=-1)
+
+        # normalize along N
+        coef = coef / (1e-6 + coef.sum(dim=1, keepdim=True))
+
+        # (B * S, D, N) @ (B * S, N, R) -> (B * S, D, R)
+        bases = torch.bmm(x, coef)
+
+        return bases, coef
+
+
+    def compute_coef(self, x, bases, _):
+        with torch.no_grad():
+            # (B * S, D, N) -> (B * S, 1, N)
+            x_norm = x.norm(dim=1, keepdim=True)
+
+        # (B * S, D, N) / (B * S, 1, N) -> (B * S, D, N)
+        std_x = x / (1e-6 + x_norm)
+
+        # (B * S, D, R), normalize bases along D (for cosine similarity)
+        std_bases = F.normalize(bases, dim=1, eps=1e-6)
+
+        # (B * S, N, D)^T @ (B * S, D, R) -> (B * S, N, R)
+        coef = torch.bmm(std_x.transpose(1, 2), std_bases)
+
+        # softmax along R
+        coef = F.softmax(self.inv_t * coef, dim=-1)
+
+        return coef
+
+
 
 class HamburgerV2(nn.Module):
-    def __init__(self, in_c, model_config):
+    def __init__(self, device, in_c, model_config):
         super().__init__()
 
+        self.device = device
         C = model_config["model_params"]["MD_D"]
 
         self.lower_bread = nn.Sequential(
@@ -159,7 +209,23 @@ class HamburgerV2(nn.Module):
             nn.ReLU(inplace=True)
             )
 
-        self.ham = NMF1D(model_config)
+        ham_type = model_config["model_params"]["HAM_TYPE"]
+
+        if "nmf" in ham_type.lower():
+            self.lower_bread = nn.Sequential(
+                nn.Conv1d(in_c, C, 1),
+                nn.ReLU(inplace=True)
+                )
+        else:
+            self.lower_bread = nn.Conv1d(in_c, C, 1)
+
+        if "nmf" in ham_type.lower():
+            self.ham = NMF1D(self.device, model_config)
+        elif "vq" in ham_type.lower():
+            self.ham = VQ1D(self.device, model_config)
+        else:
+            print("Unknown type specified for HAM_TYPE:", ham_type)
+            exit()
 
         self.cheese = ConvBNReLU(C, C)
         self.upper_bread = nn.Conv1d(C, in_c, 1, bias=False)
@@ -237,10 +303,13 @@ class ConvBNReLU(nn.Module):
 
 
 class depthwise_separable_conv(nn.Module):
-    def __init__(self, nin, nout, kernel_size = 3, padding = 1, bias=False):
+    def __init__(self, nin, nout, kernel_size = 3, stride=2, padding=1, bias=False):
         super(depthwise_separable_conv, self).__init__()
         self.depthwise = nn.Conv1d(nin, nin, kernel_size=kernel_size, padding="same", groups=nin, bias=bias)
-        self.pointwise = nn.Conv1d(nin, nout, kernel_size=1, bias=bias)
+        if stride == 2:
+            self.pointwise = nn.Conv1d(nin, nout, kernel_size=3, stride=2, padding=padding, bias=bias)
+        else:
+            self.pointwise = nn.Conv1d(nin, nout, kernel_size=1, padding=padding, bias=bias)
         self.bn = nn.BatchNorm1d(nout)
         self.relu = nn.ReLU()
 
@@ -250,46 +319,47 @@ class depthwise_separable_conv(nn.Module):
         out = self.bn(out)
         out = self.relu(out)
         return out
-
+    
 
 class Model(nn.Module):
-    def __init__(self, model_config, filter_size=4):
+    def __init__(self, device, model_config, filter_size=8):
         super(Model, self).__init__()
+        self.device = device
         kernel_sizes = model_config["train_params"]["kernel_size"]
-        self.depthwise_separable_conv_1 = depthwise_separable_conv(nin=1,nout=filter_size * (2 ** 0),kernel_size=kernel_sizes[0],padding=int(kernel_sizes[0]/2))
-        self.depthwise_separable_conv_2 = depthwise_separable_conv(nin=filter_size * (2 ** 0),nout=filter_size * (2 ** 1),kernel_size=kernel_sizes[1],padding=int(kernel_sizes[1]/2))
-        self.depthwise_separable_conv_3 = depthwise_separable_conv(nin=filter_size * (2 ** 1),nout=filter_size * (2 ** 2),kernel_size=kernel_sizes[2],padding=int(kernel_sizes[2]/2))
-        self.depthwise_separable_conv_4 = depthwise_separable_conv(nin=filter_size * (2 ** 2),nout=filter_size * (2 ** 3),kernel_size=7,padding=int(7/2))
-        self.maxpool1d  = nn.MaxPool1d(kernel_size=2,stride=2)
+        fs = int(model_config["data"]["target_fs"])
+        window_len = int(model_config["data"]["window_len_sec"])
+        self.vec_len = fs * window_len
+
+        self.depthwise_separable_conv_1 = depthwise_separable_conv(nin=1,nout=filter_size * (2 ** 0),kernel_size=kernel_sizes[0], stride=2, padding=1)
+        self.depthwise_separable_conv_2 = depthwise_separable_conv(nin=filter_size * (2 ** 0),nout=filter_size * (2 ** 1),kernel_size=kernel_sizes[1], stride=2, padding=1)
+        self.depthwise_separable_conv_3 = depthwise_separable_conv(nin=filter_size * (2 ** 1),nout=filter_size * (2 ** 2),kernel_size=kernel_sizes[2], stride=2, padding=1)
+        self.depthwise_separable_conv_4 = depthwise_separable_conv(nin=filter_size * (2 ** 2),nout=filter_size * (2 ** 3),kernel_size=7, stride=1, padding=0)
 
         C = model_config["model_params"]["MD_D"]        
         self.squeeze = ConvBNReLU(filter_size * ((2**3) + (2**2)), C, 3, 1)
-        self.hamburger = HamburgerV2(C, model_config)
-        self.align = ConvBNReLU(C, 1, 1)
-        self.seg_out = nn.Conv1d(in_channels=1,out_channels=1,kernel_size=1)
+        self.hamburger = HamburgerV2(self.device, C, model_config)
 
+        self.align = ConvBNReLU(C, 3, 1)
+        self.upsample1D = nn.Upsample(size=self.vec_len)
+
+        self.seg_out = nn.Sequential(
+            nn.Conv1d(in_channels=3,out_channels=3,kernel_size=5, padding="same"),
+            nn.ReLU(),
+            nn.Conv1d(in_channels=3,out_channels=1,kernel_size=1),
+            nn.Sigmoid()
+        )
 
     def forward(self, x):
         x = self.depthwise_separable_conv_1(x)
-        x = self.maxpool1d(x)
-      
-        x = self.depthwise_separable_conv_2(x)
-        x = self.maxpool1d(x)
-      
-        x = self.depthwise_separable_conv_3(x)
-        x1 = self.maxpool1d(x)
-      
+        x = self.depthwise_separable_conv_2(x)      
+        x1 = self.depthwise_separable_conv_3(x)
         x = self.depthwise_separable_conv_4(x1)
-        x = self.maxpool1d(x)
-
-        x1 = self.maxpool1d(x1)
         x = torch.concat([x, x1], dim=1)
         x = self.squeeze(x)
-        x = self.hamburger(x)
+        x = self.hamburger(x)        
         x = self.align(x)
+        x = self.upsample1D(x)
         x = self.seg_out(x)
-        x = F.sigmoid(x)
-   
         return x
 
 
@@ -299,7 +369,7 @@ def test_model():
     from torch.utils.tensorboard import SummaryWriter
     writer = SummaryWriter('test_run/Model')
 
-    config_path = os.path.join("config", "sqa_ppg.json")
+    config_path = os.path.join("utils", "sqa", "config", "sqa_bvp.json")
     if os.path.exists(config_path):
         with open(config_path) as json_file:
             model_config = json.load(json_file)
@@ -316,7 +386,7 @@ def test_model():
 
     device = ("cuda" if torch.cuda.is_available() else "cpu")
     print(f"Using {device} device")
-    sqPPG_model = Model(model_config).to(device)
+    sqPPG_model = Model(device, model_config).to(device)
     sqPPG_model.eval()
 
     sig_vec = torch.rand((batch_size, num_channels, seq_samples)).to(device)

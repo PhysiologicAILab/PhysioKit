@@ -308,7 +308,7 @@ class physManager(QWidget):
                 sq_legend_image = files('PhysioKit2.images').joinpath('sq_indication.png')
                 pixmap = QPixmap(sq_legend_image)
                 self.ui.label_sq_legend.setPixmap(pixmap)                
-                self.sqa_config = files('PhysioKit2.sqa.config').joinpath('sqa_ppg.json')
+                self.sqa_config = files('PhysioKit2.sqa.config').joinpath('sqa_bvp.json')
                 self.ui.ppg_sq_indices = list(np.where(np.array(config.CHANNEL_TYPES) == "ppg")[0])
                 num_sq_ch = len(self.ui.ppg_sq_indices)
                 self.ui.sq_inference_thread = sqaPPGInference(
@@ -573,7 +573,6 @@ class physManager(QWidget):
 
 
 
-
 class FigCanvas(FigureCanvas):
     def __init__(self, sampling_rate, channels, channel_types, ch_colors, sq_flag, parent=None, width=13.8, height=7.5, dpi=100):
         
@@ -684,7 +683,7 @@ class PlotAnimation(TimedAnimation):
     def addData(self, value):
         for nCh in range(self.nChannels):
             self.plot_signals[nCh] = np.roll(self.plot_signals[nCh], -1)
-            self.plot_signals[nCh][-1] = value[nCh]
+            self.plot_signals[nCh][-1] = abs(value[nCh])
         return
 
 
@@ -710,10 +709,8 @@ class PlotAnimation(TimedAnimation):
                 mn = np.min(self.plot_signals[nCh])
                 if (mx - mx) > 0:
                     sig = (self.plot_signals[nCh] - mn)/(mx - mn)
-                elif mx > 0:
-                    sig = (self.plot_signals[nCh] - mn)/(mx)
                 else:
-                    sig = (self.plot_signals[nCh] - mn)
+                    sig = (self.plot_signals[nCh])
                 self.lines[str(nCh)].set_ydata(sig)
                 if self.sq_flag and self.channel_types[nCh] == "ppg":
                     self.sq_images[str(nCh)].set_data(self.sq_vecs[nCh])

@@ -8,7 +8,7 @@ from scipy import signal
 from PySide6.QtCore import Signal, QThread, Signal
 from importlib.resources import files
 
-from PhysioKit2.sqa.model.sqa_ppg import Model as sqPPG
+from PhysioKit2.sqa.model.sqa_bvp import Model as sqPPG
 
 class sqaPPGInference(QThread):
     """
@@ -43,7 +43,7 @@ class sqaPPGInference(QThread):
 
         self.stop_flag = False
         self.win_samples = self.fs * self.seq_len
-        self.step_samples = self.fs * self.sq_resolution
+        self.step_samples = self.fs * self.sq_resolution if self.sq_resolution > 0 else self.fs * 1
         self.count_step = 0
         self.count_init_window = 0
         self.init_window_filled = False
@@ -92,7 +92,7 @@ class sqaPPGInference(QThread):
         while not self.stop_flag:
 
             if not self.model_loaded:
-                self.sqPPG_model = sqPPG(self.model_config).to(self.device)
+                self.sqPPG_model = sqPPG(self.device, self.model_config).to(self.device)
                 ckpt_path = files('PhysioKit2.sqa.ckpt').joinpath(self.model_config["ckpt_name"])
                 if os.path.exists(ckpt_path):
                     checkpoint = torch.load(ckpt_path, map_location=self.device)
