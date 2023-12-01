@@ -1,9 +1,19 @@
-from matplotlib import use
-use("AGG")
+import matplotlib
+# Check the operating system
+import platform
+if platform.system() == 'Darwin':  # macOS
+    # matplotlib.use('macosx')
+    # from matplotlib.backends.backend_macosx import FigureCanvasMac as FigureCanvas
+    matplotlib.use('Agg')
+    from matplotlib.backends.backend_qtagg import FigureCanvasQTAgg as FigureCanvas
+else:
+    matplotlib.use('Qt5Agg')
+    from matplotlib.backends.backend_qt5agg import FigureCanvasQTAgg as FigureCanvas
+
+
 import matplotlib.pyplot as plt
 from matplotlib.figure import Figure
 from matplotlib.animation import TimedAnimation
-from matplotlib.backends.backend_qtagg import FigureCanvasQTAgg as FigureCanvas
 
 import os
 import sys
@@ -30,8 +40,8 @@ from PhysioKit2.utils.biofeedback import BioFeedback_Thread
 from PhysioKit2.utils import config
 from PhysioKit2.sqa.inference_thread import sqaPPGInference
 
+from PySide6.QtCore import QFile, Qt, QCoreApplication
 from PySide6.QtWidgets import QApplication, QWidget, QGraphicsScene, QFileDialog
-from PySide6.QtCore import QFile, Qt
 from PySide6.QtUiTools import QUiLoader
 from PySide6.QtGui import QPixmap, QImage
 
@@ -301,6 +311,7 @@ class physManager(QWidget):
             self.myAnim = PlotAnimation(figCanvas=self.figCanvas)
             self.graphic_scene = QGraphicsScene()
             self.graphic_scene.addWidget(self.figCanvas)
+            # self.graphic_scene.addItem(self.figCanvas)
             self.ui.graphicsView.setScene(self.graphic_scene)
             self.ui.graphicsView.show()
 
@@ -764,4 +775,6 @@ def main(argv=sys.argv):
     return
 
 if __name__ == '__main__':
+    QCoreApplication.setAttribute(Qt.AA_ShareOpenGLContexts)
+    qt_app = QtWidgets.QApplication(sys.argv)
     main()

@@ -126,13 +126,13 @@ class BioFeedback_Thread(QThread):
                             # print("number of peaks", len(ppg_info['PPG_Peaks']))
                             hrv_indices = nk.hrv_time(ppg_info['PPG_Peaks'])
                             self.ppg_metrics[self.bf_metric] = hrv_indices[self.bf_metric][0]
-                            print("metrics:", hrv_indices[self.bf_metric][0])
+                            # print("metrics:", hrv_indices[self.bf_metric][0])
                         
                         if self.set_baseline:
                             if self.ppg_metrics[self.bf_metric] != 0:
                                 self.ppg_metrics["baseline"] = np.roll(self.ppg_metrics["baseline"], -1)
                                 self.ppg_metrics["baseline"][-1] = self.ppg_metrics[self.bf_metric]
-                                print("Baseline metrics:", self.ppg_metrics["baseline"])
+                                # print("Baseline metrics:", self.ppg_metrics["baseline"])
                                 self.set_baseline = True
 
                         if np.max(self.ppg_metrics["baseline"]) != 0:
@@ -146,7 +146,7 @@ class BioFeedback_Thread(QThread):
                             self.ppg_metrics["percent_change"][-1] = new_val
                         else:
                             self.ppg_metrics["percent_change"] = 0
-                        print("percent_change", self.ppg_metrics["percent_change"])
+                        # print("percent_change", self.ppg_metrics["percent_change"])
                     
                         if self.bf_type == "visual":
                             if self.vis_artifact == "size":    
