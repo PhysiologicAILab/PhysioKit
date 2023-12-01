@@ -52,13 +52,14 @@ class File_IO(QThread):
 
     def stop(self):
         self.stop_flag = True
-        time.sleep(1)
         # On closing of the thread
         if os.path.exists(self.config.TEMP_FILENAME):
             if not self.config.CSVFILE_HANDLE.closed:
+                time.sleep(1)
                 self.config.CSVFILE_HANDLE.close()
-            time.sleep(0.2)
+                time.sleep(0.2)
             os.remove(self.config.TEMP_FILENAME)
+            time.sleep(0.2)
         self.terminate()
         print("FileIO thread terminated...")
 
