@@ -71,7 +71,7 @@ class BioFeedback_Thread(QThread):
 
     def stop(self):
         self.stop_flag = True
-        time.sleep(1)
+        time.sleep(0.3)
         self.terminate()
         print("Biofeedback thread terminated...")
 
@@ -118,15 +118,10 @@ class BioFeedback_Thread(QThread):
                 self.process_flag = False
                 try:
                     if self.bf_signal_type == "PPG":
-                        # ppg_proc_signals, ppg_info = nk.ppg_process(self.bf_signal, sampling_rate=self.fs)
-                        clean_ppg = nk.ppg_clean(self.bf_signal, sampling_rate=self.fs)
-                        ppg_info = nk.ppg_findpeaks(clean_ppg, sampling_rate=self.fs)
-                        # print("ppg_info['PPG_Peaks']", ppg_info['PPG_Peaks'])
+                        ppg_info = nk.ppg_findpeaks(self.bf_signal, sampling_rate=self.fs)
                         if (np.max(ppg_info['PPG_Peaks'].shape) > 1):
-                            # print("number of peaks", len(ppg_info['PPG_Peaks']))
-                            hrv_indices = nk.hrv_time(ppg_info['PPG_Peaks'])
+                            hrv_indices = nk.hrv_time(ppg_info, sampling_rate=self.fs)
                             self.ppg_metrics[self.bf_metric] = hrv_indices[self.bf_metric][0]
-                            # print("metrics:", hrv_indices[self.bf_metric][0])
                         
                         if self.set_baseline:
                             if self.ppg_metrics[self.bf_metric] != 0:
@@ -232,4 +227,4 @@ class BioFeedback_Thread(QThread):
                     time.sleep(1)
 
             else:
-                time.sleep(0.95*self.step_len)
+                time.sleep(0.8*self.step_len)

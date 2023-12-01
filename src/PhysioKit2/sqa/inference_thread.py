@@ -44,6 +44,7 @@ class sqaPPGInference(QThread):
         self.stop_flag = False
         self.win_samples = self.fs * self.seq_len
         self.step_samples = self.fs * self.sq_resolution if self.sq_resolution > 0 else self.fs * 1
+        self.sleep_time = self.sq_resolution if self.sq_resolution > 0 else 0.5
         self.count_step = 0
         self.count_init_window = 0
         self.init_window_filled = False
@@ -61,7 +62,7 @@ class sqaPPGInference(QThread):
 
 
     def stop(self):
-        self.stop_flag = True
+        time.sleep(0.3)
         self.terminate()
         print("Signal quality assessment thread terminated...")
 
@@ -149,4 +150,4 @@ class sqaPPGInference(QThread):
                     self.update_sq_vec.emit(sq_vec) # emit
             
             else:
-                time.sleep(self.sq_resolution)
+                time.sleep(self.sleep_time)

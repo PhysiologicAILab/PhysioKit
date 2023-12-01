@@ -185,14 +185,20 @@ class physManager(QWidget):
             config.ANIM_RUNNING = False
 
         if self.ui.sq_thread_created:
+            if not self.ui.sq_inference_thread.stop_flag:
+                self.ui.sq_inference_thread.stop_flag = True
             if self.ui.sq_inference_thread.isRunning():
                 self.ui.sq_inference_thread.stop()
 
         if self.ui.biofeedback_enable:
+            if not self.ui.biofeedback_thread.stop_flag:
+                self.ui.biofeedback_thread.stop_flag = True
             if self.ui.biofeedback_thread.isRunning():
                 self.ui.biofeedback_thread.stop()
 
         if self.ui.fileIO_thread_created:
+            if not self.ui.fileIO_thread.stop_flag:
+                self.ui.fileIO_thread.stop_flag = True
             if not self.ui.fileIO_thread.isRunning():
                 self.ui.fileIO_thread.stop()
 
@@ -255,152 +261,153 @@ class physManager(QWidget):
             self.ui.label_status.setText("Error opening the JSON file")
             return
 
-        # try:
-        if self.ui.params_dict != None:
+        try:
+            if self.ui.params_dict != None:
 
-            self.ui.timed_acquisition = self.ui.params_dict["exp"]["timed_acquisition"]
-            # print(self.ui.timed_acquisition, type(self.ui.timed_acquisition))
-            if self.ui.timed_acquisition:
-                self.ui.max_acquisition_time = self.ui.params_dict["exp"]["max_time_seconds"]
-                self.ui.curr_acquisition_time = self.ui.max_acquisition_time[0]
-                self.ui.curr_acquisition_time_ms = self.ui.max_acquisition_time[0] * 1000.0
+                self.ui.timed_acquisition = self.ui.params_dict["exp"]["timed_acquisition"]
+                # print(self.ui.timed_acquisition, type(self.ui.timed_acquisition))
+                if self.ui.timed_acquisition:
+                    self.ui.max_acquisition_time = self.ui.params_dict["exp"]["max_time_seconds"]
+                    self.ui.curr_acquisition_time = self.ui.max_acquisition_time[0]
+                    self.ui.curr_acquisition_time_ms = self.ui.max_acquisition_time[0] * 1000.0
 
-            self.ui.event_codes = []
-            self.ui.event_code_names = []
-            for key, val in self.ui.params_dict["exp"]["event_codes"].items():
-                self.ui.event_codes.append(key)
-                self.ui.event_code_names.append(val)
-            self.ui.comboBox_event.addItems(self.ui.event_codes)
-            self.ui.eventcode = self.ui.event_codes[0]
+                self.ui.event_codes = []
+                self.ui.event_code_names = []
+                for key, val in self.ui.params_dict["exp"]["event_codes"].items():
+                    self.ui.event_codes.append(key)
+                    self.ui.event_code_names.append(val)
+                self.ui.comboBox_event.addItems(self.ui.event_codes)
+                self.ui.eventcode = self.ui.event_codes[0]
 
-            self.ui.data_root_dir = self.ui.params_dict["exp"]["datapath"]
-            if not os.path.exists(self.ui.data_root_dir):
-                os.makedirs(self.ui.data_root_dir)
+                self.ui.data_root_dir = self.ui.params_dict["exp"]["datapath"]
+                if not os.path.exists(self.ui.data_root_dir):
+                    os.makedirs(self.ui.data_root_dir)
 
-            self.ui.curr_exp_name = self.ui.params_dict["exp"]["study_name"]
-            self.ui.label_study_name.setText(self.ui.curr_exp_name)
-            self.ui.conditions = self.ui.params_dict["exp"]["conditions"]
-            self.ui.curr_exp_condition = self.ui.conditions[0]
-            self.ui.listWidget_expConditions.clear()
-            self.ui.listWidget_expConditions.addItems(self.ui.conditions)
-            self.ui.listWidget_expConditions.setCurrentRow(0)
+                self.ui.curr_exp_name = self.ui.params_dict["exp"]["study_name"]
+                self.ui.label_study_name.setText(self.ui.curr_exp_name)
+                self.ui.conditions = self.ui.params_dict["exp"]["conditions"]
+                self.ui.curr_exp_condition = self.ui.conditions[0]
+                self.ui.listWidget_expConditions.clear()
+                self.ui.listWidget_expConditions.addItems(self.ui.conditions)
+                self.ui.listWidget_expConditions.setCurrentRow(0)
 
-            self.ui.channels = self.ui.params_dict["exp"]["channels"]
-            config.NCHANNELS = len(self.ui.channels)
-            self.ui.channel_types = self.ui.params_dict["exp"]["channel_types"]
-            config.CHANNEL_TYPES = self.ui.channel_types
-            self.ui.channel_plot_colors = self.ui.sw_config_dict["exp"]["channel_plot_colors"][:config.NCHANNELS]
+                self.ui.channels = self.ui.params_dict["exp"]["channels"]
+                config.NCHANNELS = len(self.ui.channels)
+                self.ui.channel_types = self.ui.params_dict["exp"]["channel_types"]
+                config.CHANNEL_TYPES = self.ui.channel_types
+                self.ui.channel_plot_colors = self.ui.sw_config_dict["exp"]["channel_plot_colors"][:config.NCHANNELS]
 
-            # Initialize file_ops worker here
-            self.ui.fileIO_thread = File_IO(self.ui, config)
-            self.ui.fileIO_thread_created = True
-            self.ui.fileIO_thread.signals.record_signal.connect(self.start_recording)
+                # Initialize file_ops worker here
+                self.ui.fileIO_thread = File_IO(self.ui, config)
+                self.ui.fileIO_thread_created = True
+                self.ui.fileIO_thread.signals.record_signal.connect(self.start_recording)
 
-            self.ui.fileIO_thread.start()
+                self.ui.fileIO_thread.start()
 
-            # # Place the matplotlib figure
-            gv_rect = self.ui.graphicsView.viewport().rect()
-            gv_width = gv_rect.width()
-            gv_height = gv_rect.height()
-            self.figCanvas = FigCanvas(sampling_rate=config.SAMPLING_RATE,
-                                       channels = self.ui.channels, 
-                                       channel_types = config.CHANNEL_TYPES,
-                                       ch_colors = self.ui.channel_plot_colors, 
-                                       sq_flag = self.ui.params_dict["exp"]["assess_signal_quality"], 
-                                       width = gv_width, height = gv_height)
-            self.myAnim = PlotAnimation(figCanvas=self.figCanvas)
-            self.graphic_scene = QGraphicsScene()
-            self.graphic_scene.addWidget(self.figCanvas)
-            # self.graphic_scene.addItem(self.figCanvas)
-            self.ui.graphicsView.setScene(self.graphic_scene)
-            self.ui.graphicsView.show()
+                # # Place the matplotlib figure
+                gv_rect = self.ui.graphicsView.viewport().rect()
+                gv_width = gv_rect.width()
+                gv_height = gv_rect.height()
+                self.figCanvas = FigCanvas(sampling_rate=config.SAMPLING_RATE,
+                                        channels = self.ui.channels, 
+                                        channel_types = config.CHANNEL_TYPES,
+                                        ch_colors = self.ui.channel_plot_colors, 
+                                        sq_flag = self.ui.params_dict["exp"]["assess_signal_quality"], 
+                                        width = gv_width, height = gv_height)
+                self.myAnim = PlotAnimation(figCanvas=self.figCanvas)
+                self.graphic_scene = QGraphicsScene()
+                self.graphic_scene.addWidget(self.figCanvas)
+                # self.graphic_scene.addItem(self.figCanvas)
+                self.ui.graphicsView.setScene(self.graphic_scene)
+                self.ui.graphicsView.show()
 
-            if "ppg" in config.CHANNEL_TYPES and self.ui.params_dict["exp"]["assess_signal_quality"]:
-                sq_legend_image = files('PhysioKit2.images').joinpath('sq_indication.png')
-                pixmap = QPixmap(sq_legend_image)
-                self.ui.label_sq_legend.setPixmap(pixmap)                
-                self.sqa_config = files('PhysioKit2.sqa.config').joinpath('sqa_bvp.json')
-                self.ui.ppg_sq_indices = list(np.where(np.array(config.CHANNEL_TYPES) == "ppg")[0])
-                num_sq_ch = len(self.ui.ppg_sq_indices)
-                self.ui.sq_inference_thread = sqaPPGInference(
-                    self.sqa_config, config.SAMPLING_RATE, num_sq_ch, axis=1, parent=self)
-                self.ui.sq_inference_thread.update_sq_vec.connect(self.myAnim.addSQData)
-                self.ui.sq_thread_created = True
+                if "ppg" in config.CHANNEL_TYPES and self.ui.params_dict["exp"]["assess_signal_quality"]:
+                    sq_legend_image = files('PhysioKit2.images').joinpath('sq_indication.png')
+                    pixmap = QPixmap(sq_legend_image)
+                    self.ui.label_sq_legend.setPixmap(pixmap)                
+                    self.sqa_config = files('PhysioKit2.sqa.config').joinpath('sqa_bvp.json')
+                    self.ui.ppg_sq_indices = list(np.where(np.array(config.CHANNEL_TYPES) == "ppg")[0])
+                    num_sq_ch = len(self.ui.ppg_sq_indices)
+                    self.ui.sq_inference_thread = sqaPPGInference(
+                        self.sqa_config, config.SAMPLING_RATE, num_sq_ch, axis=1, parent=self)
+                    self.ui.sq_inference_thread.update_sq_vec.connect(self.myAnim.addSQData)
+                    self.ui.sq_thread_created = True
 
-            if "biofeedback" in self.ui.params_dict:
-                if bool(self.ui.params_dict["biofeedback"]["enabled"]):
-                    self.ui.biofeedback_enable = True
-                    self.ui.bf_ch_index = self.ui.params_dict["biofeedback"]["ch_index"]
-                    self.ui.bf_type = self.ui.params_dict["biofeedback"]["type"]
-                    if self.ui.bf_type == "visual":
-                        self.ui.bf_vis_parameter = self.ui.params_dict["biofeedback"]["visual_feedback"]["varying_parameter"]
+                if "biofeedback" in self.ui.params_dict:
+                    if bool(self.ui.params_dict["biofeedback"]["enabled"]):
+                        self.ui.biofeedback_enable = True
+                        self.ui.bf_ch_index = self.ui.params_dict["biofeedback"]["ch_index"]
+                        self.ui.bf_type = self.ui.params_dict["biofeedback"]["type"]
+                        if self.ui.bf_type == "visual":
+                            self.ui.bf_vis_parameter = self.ui.params_dict["biofeedback"]["visual_feedback"]["varying_parameter"]
+                        self.ui.biofeedback_thread = BioFeedback_Thread(
+                            config.SAMPLING_RATE, self.ui.params_dict["biofeedback"], parent=self)
+                    else:
+                        self.ui.biofeedback_enable = False
 
-                else:
-                    self.ui.biofeedback_enable = False
+                self.phys_Acquisition_Obj.initialize_filters(self.ui)
+                self.phys_Acquisition_Obj.signals.data_signal.connect(self.ui.fileIO_thread.csvWrite_function)
+                self.phys_Acquisition_Obj.signals.data_signal_filt.connect(self.myAnim.addData)
+                self.phys_Acquisition_Obj.signals.time_signal.connect(self.update_time_elapsed)
+                self.phys_Acquisition_Obj.signals.log_signal.connect(self.update_log)
+                # self.phys_Acquisition_Obj.signals.stop_signal.connect(self.stop_record_from_thread)
 
-            self.phys_Acquisition_Obj.initialize_filters(self.ui)
-            self.phys_Acquisition_Obj.signals.data_signal.connect(self.ui.fileIO_thread.csvWrite_function)
-            self.phys_Acquisition_Obj.signals.data_signal_filt.connect(self.myAnim.addData)
-            self.phys_Acquisition_Obj.signals.time_signal.connect(self.update_time_elapsed)
-            self.phys_Acquisition_Obj.signals.log_signal.connect(self.update_log)
-            # self.phys_Acquisition_Obj.signals.stop_signal.connect(self.stop_record_from_thread)
-
-            if self.ui.params_dict["exp"]["assess_signal_quality"]:
-                self.phys_Acquisition_Obj.signals.sq_signal.connect(self.ui.sq_inference_thread.add_sq_data)
-                
-            if self.ui.biofeedback_enable:
-                self.ui.biofeedback_thread = BioFeedback_Thread(config.SAMPLING_RATE, self.ui.params_dict["biofeedback"], parent=self)
-
-                self.phys_Acquisition_Obj.signals.bf_signal.connect(self.ui.biofeedback_thread.add_bf_data)
-
-                if self.ui.bf_type == "visual":
+                if self.ui.params_dict["exp"]["assess_signal_quality"]:
+                    self.phys_Acquisition_Obj.signals.sq_signal.connect(self.ui.sq_inference_thread.add_sq_data)
                     
-                    self.ui.tabWidget.setCurrentIndex(1)
+                if self.ui.biofeedback_enable:
 
-                    if self.ui.bf_vis_parameter == "size":
-                        self.ui.biofeedback_thread.signals.update_bf_vis_out_int.connect(self.update_bf_visualization_size)
-                    else:
-                        color_bar_image = files('PhysioKit2.images').joinpath('color_bar.png')
-                        pixmap = QPixmap(color_bar_image)
-                        self.ui.label_palette.setPixmap(pixmap)
-                        self.ui.biofeedback_thread.signals.update_bf_vis_out_str.connect(self.update_bf_visualization_color)
+                    self.phys_Acquisition_Obj.signals.bf_signal.connect(self.ui.biofeedback_thread.add_bf_data)
 
-                    if self.ui.bf_vis_parameter == "size":
-                        img_width = 1280
-                        img_height = 720
-                        self.ui.bf_center_coordinates = (img_width//2, img_height//2)
-                        self.ui.bf_disp_image = 255*np.ones((img_height, img_width, 3), np.uint8)
-                        self.ui.bf_circle_thickness = -1
-                        self.ui.bf_circle_color = (127, 127, 127)
+                    if self.ui.bf_type == "visual":
+                        
+                        self.ui.tabWidget.setCurrentIndex(1)
 
-                        disp_image = deepcopy(self.ui.bf_disp_image)
-                        disp_image = cv2.circle(disp_image, self.ui.bf_center_coordinates,
-                                                self.ui.biofeedback_thread.circle_radius_baseline, self.ui.bf_circle_color, self.ui.bf_circle_thickness)
-                        h, w, ch = disp_image.shape
-                        bytesPerLine = ch * w
-                        qimg = QImage(self.ui.bf_disp_image.data, w, h, bytesPerLine, QImage.Format_RGB888)
-                        self.preview_pixmap = QPixmap.fromImage(qimg)
-                        self.ui.label_biofeedback.setPixmap(self.preview_pixmap)
-                        self.ui.label_palette.hide()
+                        if self.ui.bf_vis_parameter == "size":
+                            self.ui.biofeedback_thread.signals.update_bf_vis_out_int.connect(self.update_bf_visualization_size)
+                        else:
+                            color_bar_image = files('PhysioKit2.images').joinpath('color_bar.png')
+                            pixmap = QPixmap(color_bar_image)
+                            self.ui.label_palette.setPixmap(pixmap)
+                            self.ui.biofeedback_thread.signals.update_bf_vis_out_str.connect(self.update_bf_visualization_color)
 
-                    else:
-                        self.ui.label_biofeedback.setStyleSheet("background-color:rgb(127,127,127); border-radius: 10px")
-                
-                elif self.ui.bf_type == "generic_uart":
-                    self.ui.biofeedback_thread.signals.update_bf_generic_out.connect(self.phys_Acquisition_Obj.add_bf_out_signal)
+                        if self.ui.bf_vis_parameter == "size":
+                            img_width = 1280
+                            img_height = 720
+                            self.ui.bf_center_coordinates = (img_width//2, img_height//2)
+                            self.ui.bf_disp_image = 255*np.ones((img_height, img_width, 3), np.uint8)
+                            self.ui.bf_circle_thickness = -1
+                            self.ui.bf_circle_color = (127, 127, 127)
 
-                print("Biofeedback Enabled")
+                            disp_image = deepcopy(self.ui.bf_disp_image)
+                            disp_image = cv2.circle(disp_image, self.ui.bf_center_coordinates,
+                                                    self.ui.biofeedback_thread.circle_radius_baseline, self.ui.bf_circle_color, self.ui.bf_circle_thickness)
+                            h, w, ch = disp_image.shape
+                            bytesPerLine = ch * w
+                            qimg = QImage(self.ui.bf_disp_image.data, w, h, bytesPerLine, QImage.Format_RGB888)
+                            self.preview_pixmap = QPixmap.fromImage(qimg)
+                            self.ui.label_biofeedback.setPixmap(self.preview_pixmap)
+                            self.ui.label_palette.hide()
+
+                        else:
+                            self.ui.label_biofeedback.setStyleSheet("background-color:rgb(127,127,127); border-radius: 10px")
+                    
+                    elif self.ui.bf_type == "generic_uart":
+                        self.ui.biofeedback_thread.signals.update_bf_generic_out.connect(self.phys_Acquisition_Obj.add_bf_out_signal)
+
+                    print("Biofeedback Enabled")
 
 
-            self.ui.exp_loaded = True
-            if self.ui.ser_open_status:
-                self.ui.pushButton_start_live_acquisition.setEnabled(True)
+                self.ui.exp_loaded = True
+                if self.ui.ser_open_status:
+                    self.ui.pushButton_start_live_acquisition.setEnabled(True)
 
-            self.ui.pushButton_exp_params.setEnabled(False)
-            self.ui.label_status.setText("Loaded experiment parameters successfully")
+                self.ui.pushButton_exp_params.setEnabled(False)
+                self.ui.label_status.setText("Loaded experiment parameters successfully")
 
-        # except:
-        #     self.ui.label_status.setText("Error loading parameters")
+        except:
+            print("Error loading the experimentation configuration file. Please check if the file specified is correct")
+            self.ui.label_status.setText("Error loading parameters")
 
 
 
