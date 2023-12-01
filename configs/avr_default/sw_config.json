@@ -4,8 +4,7 @@
         "baudrate": 115200
     },
     "exp":{
-        "channel_plot_colors": ["b", "g", "r", "m"],
-        "sqa_config": "sqa/config/sqa_bvp.json"
+        "channel_plot_colors": ["b", "g", "r", "m"]
     },
     "external_sync":
     {
