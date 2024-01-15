@@ -725,7 +725,7 @@ class PlotAnimation(TimedAnimation):
             for nCh in range(self.nChannels):
                 mx = np.max(self.plot_signals[nCh])
                 mn = np.min(self.plot_signals[nCh])
-                if np.abs(mx - mx) > 1e-6:
+                if np.abs(mx - mn) > 1e-12:
                     sig = (self.plot_signals[nCh] - mn)/(mx - mn)
                 else:
                     sig = (self.plot_signals[nCh])
