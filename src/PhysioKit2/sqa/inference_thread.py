@@ -62,7 +62,7 @@ class sqaPPGInference(QThread):
 
 
     def stop(self):
-        time.sleep(0.3)
+        time.sleep(1.0)
         self.terminate()
         print("Signal quality assessment thread terminated...")
 
@@ -146,7 +146,7 @@ class sqaPPGInference(QThread):
                     else:
                         sq_vec = [sqa_vec_1]
 
-                    # print(sq_vec)
+                    # print(sq_vec[0].shape)
                     self.update_sq_vec.emit(sq_vec) # emit
             
             else:

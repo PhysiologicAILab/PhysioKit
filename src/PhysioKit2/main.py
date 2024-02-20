@@ -17,6 +17,8 @@ from matplotlib.animation import TimedAnimation
 
 import os
 import sys
+import time
+
 os.environ["PYSIDE_DESIGNER_PLUGINS"] = '.'
 os.environ["QT_LOGGING_RULES"]='*.debug=false;qt.pysideplugin=false'
 import argparse
@@ -180,10 +182,6 @@ class physManager(QWidget):
             if self.phys_Acquisition_Obj.isRunning():
                 self.phys_Acquisition_Obj.stop()
 
-        if config.ANIM_RUNNING:
-            TimedAnimation._stop(self.myAnim)
-            config.ANIM_RUNNING = False
-
         if self.ui.sq_thread_created:
             if not self.ui.sq_inference_thread.stop_flag:
                 self.ui.sq_inference_thread.stop_flag = True
@@ -210,6 +208,10 @@ class physManager(QWidget):
                 if self.ui.client_thread.isRunning():
                     self.ui.client_thread.stop()
 
+        time.sleep(1.0)
+        if config.ANIM_RUNNING:
+            TimedAnimation._stop(self.myAnim)
+            config.ANIM_RUNNING = False
 
 
     def update_exp_condition(self):
@@ -620,7 +622,8 @@ class FigCanvas(FigureCanvas):
     
             # if self.sq_flag and self.channel_types[nCh] == "ppg":
             if self.sq_flag:
-                self.sq_vecs.append(0.5 * np.ones((1, self.max_plot_time * 2))) # 1/0.5 as 0.5 is sq_resolution. 
+                # self.sq_vecs.append(0.5 * np.ones((1, self.max_plot_time * 2))) # 1/0.5 as 0.5 is sq_resolution. 
+                self.sq_vecs.append(0.5 * np.ones((1, self.max_plot_time * sampling_rate))) # dense, per sample, sq_resolution. 
 
             if self.nChannels == self.max_plot_channels:
                 self.axs[str(nCh)] = self.fig.add_subplot(2, 2, nCh+1)
@@ -749,16 +752,24 @@ class PlotAnimation(TimedAnimation):
 
 
 
-def main(argv=sys.argv):
+# def main(argv=sys.argv):
+    
+#     widget = physManager(args_parser)
+#     widget.show()
+#     ret = app.exec()
 
-    # Create the application instance.
-    app = QApplication([])
+#     # sys.exit(ret)
+#     return
 
+if __name__ == '__main__':
+    QCoreApplication.setAttribute(Qt.AA_ShareOpenGLContexts)
+    qt_app = QApplication(sys.argv)
+    
     parser = argparse.ArgumentParser()
     parser.add_argument('--config', default=files('PhysioKit2.configs.avr_default').joinpath('sw_config.json'), type=str,
                         dest='config', help='Software Config file-path')
 
-    (width,height) = app.screens()[-1].size().toTuple()
+    (width, height) = qt_app.screens()[-1].size().toTuple()
     height = height - 10
     print("Adjusting the interface to the screen resolution: width, height", width, height)
 
@@ -770,18 +781,11 @@ def main(argv=sys.argv):
     parser.add_argument('REMAIN', nargs='*')
     args_parser = parser.parse_args()
 
-
     if "macos" in config.OS_NAME:
-        app.setStyle('Fusion')
-    
+        qt_app.setStyle('Fusion')
+
     widget = physManager(args_parser)
     widget.show()
-    ret = app.exec()
+    ret = qt_app.exec()
 
-    # sys.exit(ret)
-    return
-
-if __name__ == '__main__':
-    QCoreApplication.setAttribute(Qt.AA_ShareOpenGLContexts)
-    qt_app = QtWidgets.QApplication(sys.argv)
-    main()
+    # main()
