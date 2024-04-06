@@ -9,7 +9,7 @@ import torch.nn as nn
 import matplotlib.pyplot as plt
 from scipy import signal
 
-from PhysioKit2.sqa.model.sqa_bvp import Model as sqPPG
+from PhysioKit2.sqa.model.SQAPhysMD import Model as sqPPG
 from importlib.resources import files
 
 class sqaPPGInference(object):

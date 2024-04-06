@@ -369,7 +369,7 @@ def test_model():
     from torch.utils.tensorboard import SummaryWriter
     writer = SummaryWriter('test_run/Model')
 
-    config_path = os.path.join("utils", "sqa", "config", "sqa_bvp.json")
+    config_path = os.path.join("utils", "sqa", "config", "SQAPhysMD.json")
     if os.path.exists(config_path):
         with open(config_path) as json_file:
             model_config = json.load(json_file)

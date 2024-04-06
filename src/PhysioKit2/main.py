@@ -327,7 +327,7 @@ class physManager(QWidget):
                     sq_legend_image = files('PhysioKit2.images').joinpath('sq_indication.png')
                     pixmap = QPixmap(sq_legend_image)
                     self.ui.label_sq_legend.setPixmap(pixmap)                
-                    self.sqa_config = files('PhysioKit2.sqa.config').joinpath('sqa_bvp.json')
+                    self.sqa_config = files('PhysioKit2.sqa.config').joinpath('SQAPhysMD.json')
                     self.ui.ppg_sq_indices = list(np.where(np.array(config.CHANNEL_TYPES) == "ppg")[0])
                     num_sq_ch = len(self.ui.ppg_sq_indices)
                     self.ui.sq_inference_thread = sqaPPGInference(

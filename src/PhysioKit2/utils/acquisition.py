@@ -32,7 +32,7 @@ class Data_Acquisition_Thread(QThread):
         self.resp_lowcut = 0.1
         self.resp_highcut = 0.5
         self.ppg_lowcut = 0.5
-        self.ppg_highcut = 3.5
+        self.ppg_highcut = 2.5
         self.filt_order = 2
 
         self.bf_out_flag = False

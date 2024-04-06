@@ -8,7 +8,7 @@ from scipy import signal
 from PySide6.QtCore import Signal, QThread, Signal
 from importlib.resources import files
 
-from PhysioKit2.sqa.model.sqa_bvp import Model as sqPPG
+from PhysioKit2.sqa.model.SQAPhysMD import Model as sqPPG
 
 class sqaPPGInference(QThread):
     """
