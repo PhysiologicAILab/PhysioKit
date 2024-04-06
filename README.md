@@ -183,16 +183,35 @@ Please use Github's *Issues* to report any problem you face while using the Phys
 
 ### **Citation**
 
-@Article{s23198244,
-AUTHOR = {Joshi, Jitesh and Wang, Katherine and Cho, Youngjun},
-TITLE = {PhysioKit: An Open-Source, Low-Cost Physiological Computing Toolkit for Single- and Multi-User Studies},
-JOURNAL = {Sensors},
-VOLUME = {23},
-YEAR = {2023},
-NUMBER = {19},
-ARTICLE-NUMBER = {8244},
-URL = {<https://www.mdpi.com/1424-8220/23/19/8244}>,
-PubMedID = {37837074},
-ISSN = {1424-8220},
-DOI = {10.3390/s23198244}
+If you find our [paper](https://www.mdpi.com/1424-8220/23/19/8244) or this toolkit useful for your research, please cite our following works.
+
+```
+@article{joshi2023physiokit,
+    title={PhysioKit: An Open-Source, Low-Cost Physiological Computing Toolkit for Single-and Multi-User Studies},
+    author={Joshi, Jitesh and Wang, Katherine and Cho, Youngjun},
+    journal={Sensors},
+    publisher={MDPI},
+    volume={23},
+    number={19},
+    article-number={8244},
+    year={2023},
+    url={https://www.mdpi.com/1424-8220/23/19/8244}
+    issn={1424-8220},
+    doi={10.3390/s23198244}
 }
+
+@article{joshi2024imaging,
+    title={Imaging Blood Volume Pulse Dataset: RGB-Thermal Remote Photoplethysmography Dataset with High-Resolution Signal-Quality Labels},
+    author={Joshi, Jitesh and Cho, Youngjun},
+    journal={Electronics},
+    publisher={MDPI},
+    volume={13},
+    year={2024},
+    number={7},
+    article-number={1334},
+    url={https://www.mdpi.com/2079-9292/13/7/1334},
+    issn={2079-9292},
+    doi={10.3390/electronics13071334}
+}
+
+```
