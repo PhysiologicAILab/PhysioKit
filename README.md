@@ -200,8 +200,8 @@ If you find our [paper](https://www.mdpi.com/1424-8220/23/19/8244) or this toolk
     doi={10.3390/s23198244}
 }
 
-@article{joshi2024imaging,
-    title={Imaging Blood Volume Pulse Dataset: RGB-Thermal Remote Photoplethysmography Dataset with High-Resolution Signal-Quality Labels},
+@article{joshi2024ibvp,
+    title={iBVP Dataset: RGB-Thermal rPPG Dataset with High Resolution Signal Quality Labels},
     author={Joshi, Jitesh and Cho, Youngjun},
     journal={Electronics},
     publisher={MDPI},
