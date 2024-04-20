@@ -9,7 +9,7 @@ PhysioKit consists of (i) a sensor and hardware layer that can be configured in 
 
 Below figure shows architecture of PhysioKit:
 <p>
-    <img src="<https://github.com/PhysiologicAILab/PhysioKit/blob/main/images/architecture.png>" alt="Architecture of PhysioKit" width="1024">
+    <img src="https://github.com/PhysiologicAILab/PhysioKit/blob/main/images/architecture.png" alt="Architecture of PhysioKit" width="1024">
 </p>
 
 ## **Installation**
@@ -175,7 +175,7 @@ physiokit --config configs/avr_default/sw_config.json
 This shall open user interface, basic functioning of which is shown in this demo. Please note that if secondary screen is connected, the interface uses it to adjust its resolution, however it may have to be moved to the secondary screen if it got launched on the primary.
 
 <p>
-    <img src="<https://github.com/PhysiologicAILab/PhysioKit/blob/main/images/PhysioKitDemo.gif>" alt="Demo of PhysioKit" width="1024">
+    <img src="https://github.com/PhysiologicAILab/PhysioKit/blob/main/images/PhysioKitDemo.gif" alt="Demo of PhysioKit" width="1024">
 </p>
 
 A brief description of each step is mentioned below:
