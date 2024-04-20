@@ -8,8 +8,9 @@ PhysioKit is a novel physiological computing toolkit which is open-source, acces
 PhysioKit consists of (i) a sensor and hardware layer that can be configured in a modular manner along with research needs, (ii) a software application layer that enables real-time data collection, streaming and visualization for both single and multi-user experiments. This also supports basic visual biofeedback configurations and multi-signal synchronization for co-located or remote multi-user settings.
 
 Below figure shows architecture of PhysioKit:
-
-![Architecture of PhysioKit](https://github.com/PhysiologicAILab/PhysioKit/blob/main/images/architecture.png|width=1024)
+<p>
+    <img src="<https://github.com/PhysiologicAILab/PhysioKit/blob/main/images/architecture.png>" alt="Architecture of PhysioKit" width="1024">
+</p>
 
 ## **Installation**
 
@@ -22,16 +23,16 @@ Using venv:
 Creating virtual environment using venv (recommended for Windows users) -- To be executed once.
 
 ```bash
-    cd ~
-    mkdir envs
-    cd envs
-    python -m venv phys .
+cd ~
+mkdir envs
+cd envs
+python -m venv phys .
 ```
 
 Activating "phys" environment -- To be executed everytime after opening new terminal/ Powershell window.
 
 ``` bash
-    ~/envs/phys/Scripts/Activate.ps1
+~/envs/phys/Scripts/Activate.ps1
 ```
 
 Using conda:
@@ -39,25 +40,25 @@ Using conda:
 Creating virtual environment using conda -- To be done once
 
 ``` bash
-    conda create -n phys
+conda create -n phys
 ```
 
 Activating "phys" environment -- To be executed everytime after opening new terminal/ Powershell window.
 
 ``` bash
-    conda activate phys
+conda activate phys
 ```
 
 You can then use [PyPI package](https://pypi.org/project/PhysioKit2/) to install PhysioKit, using the below mentioned command:
 
 ``` bash
-    pip install PhysioKit2
+pip install PhysioKit2
 ```
 
 To update the currently installed package:
 
 ``` bash
-    pip install --upgrade PhysioKit2
+pip install --upgrade PhysioKit2
 ```
 
 ## **Building wheel (.whl) package from source**
@@ -65,27 +66,27 @@ To update the currently installed package:
 Requires 'build' package that can be installed using pip with following command:
 
 ``` bash
-    pip install build
+pip install build
 ```
 
 Clone the PhysioKit repository from GitHub and 'cd' to the clonned repo:
 
 ``` bash
-    git clone https://github.com/PhysiologicAILab/PhysioKit.git
-    cd PhysioKit
+git clone https://github.com/PhysiologicAILab/PhysioKit.git
+cd PhysioKit
 ```
 
 Make the changes to the repo as required to serve your objectives.
 In setup.py, change the version - for your tracking purpose, e.g. 2.0.0 and then build the wheel package:
 
 ``` bash
-    python -m build 
+python -m build 
 ```
 
 Install the package that has been built:
 
 ``` bash
-    python -m pip install .\dist\PhysioKit2-2.0.0-py3-none-any.whl
+python -m pip install .\dist\PhysioKit2-2.0.0-py3-none-any.whl
 ```
 
 ## **Usage Instructions**
@@ -166,14 +167,16 @@ Before launching the interface, ensure that the Arduino board is connected to th
 To launch the interface, run the following command in the terminal:
 
 ``` bash
-    physiokit --config <path of config file>
-    see example below 
-    physiokit --config configs/avr_default/sw_config.json
+physiokit --config <path of config file>
+see example below 
+physiokit --config configs/avr_default/sw_config.json
 ```
 
 This shall open user interface, basic functioning of which is shown in this demo. Please note that if secondary screen is connected, the interface uses it to adjust its resolution, however it may have to be moved to the secondary screen if it got launched on the primary.
 
-![Demo of PhysioKit](https://github.com/PhysiologicAILab/PhysioKit/blob/main/images/PhysioKitDemo.gif|width=1024)
+<p>
+    <img src="<https://github.com/PhysiologicAILab/PhysioKit/blob/main/images/PhysioKitDemo.gif>" alt="Demo of PhysioKit" width="1024">
+</p>
 
 A brief description of each step is mentioned below:
 
