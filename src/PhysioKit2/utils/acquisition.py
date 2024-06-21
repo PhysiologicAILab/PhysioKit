@@ -162,7 +162,7 @@ class Data_Acquisition_Thread(QThread):
                         curr_elapsed_time = 0
 
                     self.signals.data_signal_filt.emit(value_filt)
-                    if "ppg" in self.config.CHANNEL_TYPES:
+                    if self.ui.params_dict["exp"]["assess_signal_quality"] and "ppg" in self.config.CHANNEL_TYPES:
                         filt_val = [0, 0]
                         fv_count = 0
                         for idx in self.ui.ppg_sq_indices:

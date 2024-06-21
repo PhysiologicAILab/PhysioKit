@@ -97,7 +97,10 @@ class sqaPPGInference(QThread):
                 ckpt_path = files('PhysioKit2.sqa.ckpt').joinpath(self.model_config["ckpt_name"])
                 if os.path.exists(ckpt_path):
                     checkpoint = torch.load(ckpt_path, map_location=self.device)
-                    self.sqPPG_model.load_state_dict(checkpoint['model_state_dict'])
+                    if "model_state_dict" in checkpoint:
+                        self.sqPPG_model.load_state_dict(checkpoint['model_state_dict'])
+                    else:
+                        self.sqPPG_model.load_state_dict(checkpoint)
                     # optimizer.load_state_dict(checkpoint['optimizer_state_dict'])
                 else:
                     print("No checkpoint found, existing...")

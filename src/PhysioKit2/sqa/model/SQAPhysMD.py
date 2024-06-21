@@ -1,28 +1,58 @@
-import numpy as np
-from torch import nn
-import torch.nn.functional as F
+
 import torch
+import torch.nn as nn
+import torch.nn.functional as F
 from torch.nn.modules.batchnorm import _BatchNorm
+from torch.nn.modules.instancenorm import _InstanceNorm
 
+import numpy as np
 
-class _MatrixDecomposition1DBase(nn.Module):
-    def __init__(self, device, model_config):
+# num_filters
+nf = [8, 16, 16, 16, 16]
+
+model_config = {
+    "MD_FSAM": True,
+    "MD_TYPE": "NMF",
+    "MD_R": 1,
+    "MD_S": 1,
+    "MD_STEPS": 4,
+    "INV_T": 1,
+    "ETA": 0.9,
+    "RAND_INIT": True,
+    "in_channels": 1,
+    "data_channels": 1,
+    "align_channels": 8,
+    "batch_size": 2,
+    "samples": 300,
+    "debug": True,
+    "assess_latency": False,
+    "num_trials": 20,
+    "visualize": False,
+    "ckpt_path": "",
+    "data_path": "",
+    "label_path": ""
+}
+
+class _MatrixDecompositionBase(nn.Module):
+    def __init__(self, device, md_config, debug=False, dim="3D"):
         super().__init__()
 
-        self.S = model_config["model_params"]["MD_S"]
-        self.D = model_config["model_params"]["MD_D"]
-        self.R = model_config["model_params"]["MD_R"]
+        self.dim = dim
+        self.md_type = md_config["model_params"]["MD_TYPE"]
+        self.S = md_config["model_params"]["MD_S"]
+        self.R = md_config["model_params"]["MD_R"]
+        self.debug = debug
 
-        self.train_steps = model_config["model_params"]["TRAIN_STEPS"]
-        self.eval_steps = model_config["model_params"]["EVAL_STEPS"]
+        self.train_steps = md_config["model_params"]["MD_STEPS"]
+        self.eval_steps = md_config["model_params"]["MD_STEPS"]
 
-        self.inv_t = model_config["model_params"]["INV_T"]
-        self.eta = model_config["model_params"]["ETA"]
+        self.inv_t = model_config["INV_T"]
+        self.eta = model_config["ETA"]
 
-        self.rand_init = model_config["model_params"]["RAND_INIT"]
+        self.rand_init = model_config["RAND_INIT"]
         self.device = device
 
-        # print('spatial', self.spatial)
+        # print('Dimension:', self.dim)
         # print('S', self.S)
         # print('D', self.D)
         # print('R', self.R)
@@ -54,12 +84,45 @@ class _MatrixDecomposition1DBase(nn.Module):
         raise NotImplementedError
 
     def forward(self, x, return_bases=False):
-        B, C, L = x.shape
 
-        # (B, C, L) -> (B * S, D, N)
-        D = C // self.S
-        N = L
-        x = x.view(B * self.S, D, N)
+        if self.debug:
+            print("Org x.shape", x.shape)
+
+        if self.dim == "3D":        # (B, C, T, H, W) -> (B * S, D, N)
+            B, C, T, H, W = x.shape
+
+            # # dimension of vector of our interest is T (rPPG signal as T dimension), so forming this as vector
+            # # From spatial and channel dimension, which are features, only 2-4 shall be enough to generate the approximated attention matrix
+            D = T // self.S
+            N = C * H * W 
+
+            x = x.view(B * self.S, D, N)
+
+        elif self.dim == "2D":      # (B, C, H, W) -> (B * S, D, N)
+            B, C, H, W = x.shape
+            D = C // self.S
+            N = H * W
+            x = x.view(B * self.S, D, N)
+
+        elif self.dim == "1D":                       # (B, C, L) -> (B * S, D, N)
+            B, C, L = x.shape
+            D = L // self.S
+            N = C
+            x = x.view(B * self.S, D, N)
+
+        else:
+            print("Dimension not supported")
+            exit()
+
+        if self.debug:
+            print("MD_Type", self.md_type)
+            print("MD_S", self.S)
+            print("MD_D", D)
+            print("MD_N", N)
+            print("MD_R", self.R)
+            print("MD_TRAIN_STEPS", self.train_steps)
+            print("MD_EVAL_STEPS", self.eval_steps)
+            print("x.view(B * self.S, D, N)", x.shape)
 
         if not self.rand_init and not hasattr(self, 'bases'):
             bases = self._build_bases(1, self.S, D, self.R)
@@ -69,7 +132,7 @@ class _MatrixDecomposition1DBase(nn.Module):
         if self.rand_init:
             bases = self._build_bases(B, self.S, D, self.R)
         else:
-            bases = self.bases.repeat(B, 1, 1)
+            bases = self.bases.repeat(B, 1, 1).to(self.device)
 
         bases, coef = self.local_inference(x, bases)
 
@@ -79,8 +142,15 @@ class _MatrixDecomposition1DBase(nn.Module):
         # (B * S, D, R) @ (B * S, N, R)^T -> (B * S, D, N)
         x = torch.bmm(bases, coef.transpose(1, 2))
 
-        # (B * S, D, N) -> (B, C, L)
-        x = x.view(B, C, L)
+        if self.dim == "3D":
+            # (B * S, D, N) -> (B, C, H, W)
+            x = x.view(B, C, T, H, W)
+        elif self.dim == "2D":
+            # (B * S, D, N) -> (B, C, H, W)
+            x = x.view(B, C, H, W)
+        else:
+            # (B * S, D, N) -> (B, C, L)
+            x = x.view(B, C, L)
 
         # (B * L, D, R) -> (B, L, N, D)
         bases = bases.view(B, self.S, D, self.R)
@@ -101,14 +171,15 @@ class _MatrixDecomposition1DBase(nn.Module):
         self.bases = F.normalize(self.bases, dim=1)
 
 
-class NMF1D(_MatrixDecomposition1DBase):
-    def __init__(self, device, model_config):
-        super().__init__(device, model_config)
+class NMF(_MatrixDecompositionBase):
+    def __init__(self, device, md_config, debug=False, dim="3D"):
+        super().__init__(device, md_config, debug=debug, dim=dim)
         self.device = device
         self.inv_t = 1
 
     def _build_bases(self, B, S, D, R):
         bases = torch.rand((B * S, D, R)).to(self.device)
+        # bases = torch.ones((B * S, D, R)).to(self.device)
         bases = F.normalize(bases, dim=1)
 
         return bases
@@ -142,15 +213,15 @@ class NMF1D(_MatrixDecomposition1DBase):
         return coef
 
 
-class VQ1D(_MatrixDecomposition1DBase):
-    def __init__(self, device, model_config):
-        super().__init__(device, model_config)
+class VQ(_MatrixDecompositionBase):
+    def __init__(self, device, md_config, debug=False, dim="3D"):
+        super().__init__(device, md_config, debug=debug, dim=dim)
         self.device = device
 
     def _build_bases(self, B, S, D, R):
         bases = torch.randn((B * S, D, R)).to(self.device)
+        # bases = torch.ones((B * S, D, R)).to(self.device)
         bases = F.normalize(bases, dim=1)
-
         return bases
 
     @torch.no_grad()
@@ -196,189 +267,412 @@ class VQ1D(_MatrixDecomposition1DBase):
         return coef
 
 
+class ConvBNReLU(nn.Module):
+    @classmethod
+    def _same_paddings(cls, kernel_size, dim):
+        if dim == "3D":
+            if kernel_size == (1, 1, 1):
+                return (0, 0, 0)
+            elif kernel_size == (3, 3, 3):
+                return (1, 1, 1)
+        elif dim == "2D":
+            if kernel_size == (1, 1):
+                return (0, 0)
+            elif kernel_size == (3, 3):
+                return (1, 1)
+        else:
+            if kernel_size == 1:
+                return 0
+            elif kernel_size == 3:
+                return 1
 
-class HamburgerV2(nn.Module):
-    def __init__(self, device, in_c, model_config):
+    def __init__(self, in_c, out_c, dim,
+                 kernel_size=1, stride=1, padding='same',
+                 dilation=1, groups=1, act='relu', apply_bn=False, apply_act=True):
+        super().__init__()
+
+        self.apply_bn = apply_bn
+        self.apply_act = apply_act
+        self.dim = dim
+        if dilation == 1:
+            if self.dim == "3D":
+                dilation = (1, 1, 1)
+            elif self.dim == "2D":
+                dilation = (1, 1)
+            else:
+                dilation = 1
+
+        if kernel_size == 1:
+            if self.dim == "3D":
+                kernel_size = (1, 1, 1)
+            elif self.dim == "2D":
+                kernel_size = (1, 1)
+            else:
+                kernel_size = 1
+
+        if stride == 1:
+            if self.dim == "3D":
+                stride = (1, 1, 1)
+            elif self.dim == "2D":
+                stride = (1, 1)
+            else:
+                stride = 1
+
+        if padding == 'same':
+            padding = self._same_paddings(kernel_size, dim)
+
+        if self.dim == "3D":
+            self.conv = nn.Conv3d(in_c, out_c,
+                                  kernel_size=kernel_size, stride=stride,
+                                  padding=padding, dilation=dilation,
+                                  groups=groups,
+                                  bias=False)
+        elif self.dim == "2D":
+            self.conv = nn.Conv2d(in_c, out_c,
+                                  kernel_size=kernel_size, stride=stride,
+                                  padding=padding, dilation=dilation,
+                                  groups=groups,
+                                  bias=False)
+        else:
+            self.conv = nn.Conv1d(in_c, out_c,
+                                  kernel_size=kernel_size, stride=stride,
+                                  padding=padding, dilation=dilation,
+                                  groups=groups,
+                                  bias=False)
+
+        if act == "sigmoid":
+            self.act = nn.Sigmoid()
+        else:
+            self.act = nn.ReLU(inplace=True)
+
+        if self.apply_bn:
+            if self.dim == "3D":
+                self.bn = nn.BatchNorm3d(out_c)
+            elif self.dim == "2D":
+                self.bn = nn.BatchNorm2d(out_c)
+            else:
+                self.bn = nn.BatchNorm1d(out_c)
+
+    def forward(self, x):
+        x = self.conv(x)
+        if self.apply_act:
+            x = self.act(x)
+        if self.apply_bn:
+            x = self.bn(x)
+        return x
+
+
+class FeaturesFactorizationModule(nn.Module):
+    def __init__(self, inC, device, md_config, dim="3D", debug=False):
         super().__init__()
 
         self.device = device
-        C = model_config["model_params"]["MD_D"]
+        self.dim = dim
+        md_type = md_config["model_params"]["MD_TYPE"]
+        align_C = model_config["align_channels"]      #inC // 4  # // 2 #// 8
 
-        self.lower_bread = nn.Sequential(
-            nn.Conv1d(in_c, C, 1),
-            nn.ReLU(inplace=True)
-            )
-
-        ham_type = model_config["model_params"]["HAM_TYPE"]
-
-        if "nmf" in ham_type.lower():
-            self.lower_bread = nn.Sequential(
-                nn.Conv1d(in_c, C, 1),
-                nn.ReLU(inplace=True)
-                )
+        if self.dim == "3D":
+            if "nmf" in md_type.lower():
+                self.pre_conv_block = nn.Sequential(
+                    nn.Conv3d(inC, align_C, (1, 1, 1)), 
+                    nn.ReLU(inplace=True)
+                    )
+            else:
+                self.pre_conv_block = nn.Conv3d(inC, align_C, (1, 1, 1))
+        elif self.dim == "2D":
+            if "nmf" in md_type.lower():
+                self.pre_conv_block = nn.Sequential(
+                    nn.Conv2d(inC, align_C, (1, 1)),
+                    nn.ReLU(inplace=True)
+                    )
+            else:
+                self.pre_conv_block = nn.Conv2d(inC, align_C, (1, 1))
+        elif self.dim == "1D":
+            if "nmf" in md_type.lower():
+                self.pre_conv_block = nn.Sequential(
+                    nn.Conv1d(inC, align_C, 1), 
+                    nn.ReLU(inplace=True)
+                    )
+            else:
+                self.pre_conv_block = nn.Conv1d(inC, align_C, 1)
         else:
-            self.lower_bread = nn.Conv1d(in_c, C, 1)
+            print("Dimension not supported")
 
-        if "nmf" in ham_type.lower():
-            self.ham = NMF1D(self.device, model_config)
-        elif "vq" in ham_type.lower():
-            self.ham = VQ1D(self.device, model_config)
+        if "nmf" in md_type.lower():
+            self.md_block = NMF(self.device, md_config, dim=self.dim, debug=debug)
+        elif "vq" in md_type.lower():
+            self.md_block = VQ(self.device, md_config, dim=self.dim, debug=debug)
         else:
-            print("Unknown type specified for HAM_TYPE:", ham_type)
+            print("Unknown type specified for MD_TYPE:", md_type)
             exit()
 
-        self.cheese = ConvBNReLU(C, C)
-        self.upper_bread = nn.Conv1d(C, in_c, 1, bias=False)
-
-        self.shortcut = nn.Sequential()
+        if self.dim == "3D":
+            if "nmf" in md_type.lower():
+                self.post_conv_block = nn.Sequential(
+                    ConvBNReLU(align_C, align_C, dim=self.dim, kernel_size=1),
+                    nn.Conv3d(align_C, inC, 1, bias=False))
+            else:
+                self.post_conv_block = nn.Sequential(
+                    ConvBNReLU(align_C, align_C, dim=self.dim, kernel_size=1, apply_act=False),
+                    nn.Conv3d(align_C, inC, 1, bias=False))
+        elif self.dim == "2D":
+            if "nmf" in md_type.lower():
+                self.post_conv_block = nn.Sequential(
+                    ConvBNReLU(align_C, align_C, dim=self.dim, kernel_size=1),
+                    nn.Conv2d(align_C, inC, 1, bias=False))
+            else:
+                self.post_conv_block = nn.Sequential(
+                    ConvBNReLU(align_C, align_C, dim=self.dim, kernel_size=1, apply_act=False),
+                    nn.Conv2d(align_C, inC, 1, bias=False))
+        else:
+            if "nmf" in md_type.lower():
+                self.post_conv_block = nn.Sequential(
+                    ConvBNReLU(align_C, align_C, dim=self.dim, kernel_size=1),
+                    nn.Conv1d(align_C, inC, 1, bias=False))
+            else:
+                self.post_conv_block = nn.Sequential(
+                    ConvBNReLU(align_C, align_C, dim=self.dim, kernel_size=1, apply_act=False),
+                    nn.Conv1d(align_C, inC, 1, bias=False))
 
         self._init_weight()
 
-        # print('ham', HAM)
-
     def _init_weight(self):
         for m in self.modules():
-            if isinstance(m, nn.Conv1d):
+            if isinstance(m, nn.Conv3d):
+                N = m.kernel_size[0] * m.kernel_size[1] * m.kernel_size[2] * m.out_channels
+                m.weight.data.normal_(0, np.sqrt(2. / N))
+            elif isinstance(m, nn.Conv2d):
+                N = m.kernel_size[0] * m.kernel_size[1] * m.out_channels
+                m.weight.data.normal_(0, np.sqrt(2. / N))
+            elif isinstance(m, nn.Conv1d):
                 N = m.kernel_size[0] * m.out_channels
                 m.weight.data.normal_(0, np.sqrt(2. / N))
             elif isinstance(m, _BatchNorm):
                 m.weight.data.fill_(1)
                 if m.bias is not None:
                     m.bias.data.zero_()
+            elif isinstance(m, _InstanceNorm):
+                m.weight.data.fill_(1)
+                if m.bias is not None:
+                    m.bias.data.zero_()
 
     def forward(self, x):
-        shortcut = self.shortcut(x)
+        x = self.pre_conv_block(x)
+        att = self.md_block(x)
+        dist = torch.dist(x, att)
+        att = self.post_conv_block(att)
 
-        x = self.lower_bread(x)
-        x = self.ham(x)
-        x = self.cheese(x)
-        x = self.upper_bread(x)
-
-        x = F.relu(x + shortcut, inplace=True)
-
-        return x
+        return att, dist
 
     def online_update(self, bases):
-        if hasattr(self.ham, 'online_update'):
-            self.ham.online_update(bases)
+        if hasattr(self.md_block, 'online_update'):
+            self.md_block.online_update(bases)
 
 
-
-class ConvBNReLU(nn.Module):
-    @classmethod
-    def _same_paddings(cls, kernel_size):
-        if kernel_size == 1:
-            return 0
-        elif kernel_size == 3:
-            return 1
-
-    def __init__(self, in_c, out_c,
-                 kernel_size=1, stride=1, padding='same',
-                 dilation=1, groups=1, act='relu', apply_bn = True):
-        super().__init__()
-
-        self.apply_bn = apply_bn
-        if padding == 'same':
-            padding = self._same_paddings(kernel_size)
-
-        self.conv = nn.Conv1d(in_c, out_c,
-                              kernel_size=kernel_size, stride=stride,
-                              padding=padding, dilation=dilation,
-                              groups=groups,
-                              bias=False)
-        if self.apply_bn:
-            self.bn = nn.BatchNorm1d(out_c)
-        if act == "sigmoid":
-            self.act = nn.Sigmoid()
+class ConvBlock(nn.Module):
+    def __init__(self, in_channel, out_channel, kernel_size, stride, padding, dilation=1, group=False):
+        super(ConvBlock, self).__init__()
+        if group:
+            self.conv_block = nn.Sequential(
+                nn.Conv1d(in_channel, out_channel, kernel_size, stride, padding, dilation=dilation, groups=in_channel),
+            )
         else:
-            self.act = nn.ReLU(inplace=True)
+            self.conv_block = nn.Sequential(
+                nn.Conv1d(in_channel, out_channel, kernel_size, stride, padding, dilation=dilation),
+            )
 
     def forward(self, x):
-        x = self.conv(x)
-        if self.apply_bn:
-            x = self.bn(x)
-        x = self.act(x)
-        
-        return x
+        return self.conv_block(x)
 
 
-class depthwise_separable_conv(nn.Module):
-    def __init__(self, nin, nout, kernel_size = 3, stride=2, padding=1, bias=False):
-        super(depthwise_separable_conv, self).__init__()
-        self.depthwise = nn.Conv1d(nin, nin, kernel_size=kernel_size, padding="same", groups=nin, bias=bias)
-        if stride == 2:
-            self.pointwise = nn.Conv1d(nin, nout, kernel_size=3, stride=2, padding=padding, bias=bias)
-        else:
-            self.pointwise = nn.Conv1d(nin, nout, kernel_size=1, padding=padding, bias=bias)
-        self.bn = nn.BatchNorm1d(nout)
-        self.relu = nn.ReLU()
+class encoder_block(nn.Module):
+    def __init__(self, inCh, dropout_rate=0.1, debug=False):
+        super(encoder_block, self).__init__()
+        # inCh, out_channel, kernel_size, stride, padding
 
-    def forward(self, x):
-        out = self.depthwise(x)
-        out = self.pointwise(out)
-        out = self.bn(out)
-        out = self.relu(out)
-        return out
-    
+        self.debug = debug
 
-class Model(nn.Module):
-    def __init__(self, device, model_config, filter_size=8):
-        super(Model, self).__init__()
-        self.device = device
-        kernel_sizes = model_config["train_params"]["kernel_size"]
-        fs = int(model_config["data"]["target_fs"])
-        window_len = int(model_config["data"]["window_len_sec"])
-        self.vec_len = fs * window_len
+        self.encoder = nn.Sequential(
+            nn.Conv1d(inCh, nf[0], 11, 1, 5),
+            nn.Conv1d(nf[0], nf[1], 7, 1, 3),
+            nn.ELU(inplace=True),
+            nn.BatchNorm1d(nf[1]),
+            nn.Dropout1d(p=dropout_rate),
 
-        self.depthwise_separable_conv_1 = depthwise_separable_conv(nin=1,nout=filter_size * (2 ** 0),kernel_size=kernel_sizes[0], stride=2, padding=1)
-        self.depthwise_separable_conv_2 = depthwise_separable_conv(nin=filter_size * (2 ** 0),nout=filter_size * (2 ** 1),kernel_size=kernel_sizes[1], stride=2, padding=1)
-        self.depthwise_separable_conv_3 = depthwise_separable_conv(nin=filter_size * (2 ** 1),nout=filter_size * (2 ** 2),kernel_size=kernel_sizes[2], stride=2, padding=1)
-        self.depthwise_separable_conv_4 = depthwise_separable_conv(nin=filter_size * (2 ** 2),nout=filter_size * (2 ** 3),kernel_size=7, stride=1, padding=0)
+            nn.Conv1d(nf[1], nf[1], 7, 5, 3),
+            nn.Conv1d(nf[1], nf[2], 7, 1, 3),
+            nn.ELU(inplace=True),
+            nn.BatchNorm1d(nf[2]),
+            nn.Dropout1d(p=dropout_rate),
 
-        C = model_config["model_params"]["MD_D"]        
-        self.squeeze = ConvBNReLU(filter_size * ((2**3) + (2**2)), C, 3, 1)
-        self.hamburger = HamburgerV2(self.device, C, model_config)
+            nn.Conv1d(nf[2], nf[2], 5, 3, 2),
+            nn.Conv1d(nf[2], nf[3], 5, 1, 2),
+            nn.ELU(inplace=True),
+            nn.BatchNorm1d(nf[3]),
+            nn.Dropout1d(p=dropout_rate),
 
-        self.align = ConvBNReLU(C, 3, 1)
-        self.upsample1D = nn.Upsample(size=self.vec_len)
-
-        self.seg_out = nn.Sequential(
-            nn.Conv1d(in_channels=3,out_channels=3,kernel_size=5, padding="same"),
-            nn.ReLU(),
-            nn.Conv1d(in_channels=3,out_channels=1,kernel_size=1),
-            nn.Sigmoid()
+            nn.Conv1d(nf[3], nf[3], 3, 1, 1),
+            nn.Conv1d(nf[3], nf[4], 3, 1, 1),
+            nn.ELU(inplace=True),
+            nn.BatchNorm1d(nf[4])
         )
 
     def forward(self, x):
-        x = self.depthwise_separable_conv_1(x)
-        x = self.depthwise_separable_conv_2(x)      
-        x1 = self.depthwise_separable_conv_3(x)
-        x = self.depthwise_separable_conv_4(x1)
-        x = torch.concat([x, x1], dim=1)
-        x = self.squeeze(x)
-        x = self.hamburger(x)        
-        x = self.align(x)
-        x = self.upsample1D(x)
-        x = self.seg_out(x)
+        x = self.encoder(x)
+        if self.debug:
+            print("Encoder")
+            print("     x.shape", x.shape)
         return x
 
 
+
+class SQ_Head(nn.Module):
+    def __init__(self, md_config, device, dropout_rate=0.1, debug=False):
+        super(SQ_Head, self).__init__()
+        self.debug = debug
+
+        self.use_fsam = md_config["model_params"]["MD_FSAM"]
+        self.md_type = md_config["model_params"]["MD_TYPE"]
+
+        if self.use_fsam:
+            inC = nf[4]
+            self.fsam = FeaturesFactorizationModule(inC, device, md_config, dim="1D", debug=debug)
+            self.fsam_norm = nn.BatchNorm1d(inC)
+            self.bias1 = nn.Parameter(torch.tensor(1.0), requires_grad=True).to(device)
+            # self.bias2 = nn.Parameter(torch.tensor(2.0), requires_grad=False).to(device)
+        else:
+            inC = nf[4]
+
+        self.upsample = nn.Upsample(scale_factor=15)
+
+        self.conv_decoder = nn.Sequential(
+            nn.Conv1d(nf[4], nf[0], 3, 1, 1),
+            nn.ELU(inplace=True),
+            nn.BatchNorm1d(nf[0]),
+
+            nn.Conv1d(nf[0], 1, 3, 1, 1),
+            nn.Sigmoid()
+        )
+
+    def forward(self, signal_embeddings):
+
+        if self.debug:
+            print("Decoder")
+            print("     signal_embeddings.shape", signal_embeddings.shape)
+
+        if self.use_fsam:
+            if self.md_type == "NMF":
+                att_mask, appx_error = self.fsam(signal_embeddings - signal_embeddings.min())  # to make it positive
+            else:
+                att_mask, appx_error = self.fsam(signal_embeddings)
+
+            if self.debug:
+                print("att_mask.shape", att_mask.shape)
+
+            # # directly use att_mask   ---> difficult to converge without Residual connection. Needs high rank
+            # factorized_embeddings = self.fsam_norm(att_mask)
+
+            # # Residual connection: 
+            # factorized_embeddings = signal_embeddings + self.fsam_norm(att_mask)
+
+            # # Multiplication
+            x = torch.mul(signal_embeddings - signal_embeddings.min() + self.bias1, att_mask - att_mask.min() + self.bias1)
+            factorized_embeddings = self.fsam_norm(x)
+
+            # # Multiplication with Residual connection
+            # x = torch.mul(signal_embeddings - signal_embeddings.min() + self.bias1, att_mask - att_mask.min() + self.bias1)
+            # factorized_embeddings = signal_embeddings + self.fsam_norm(x)
+            
+            # # # Concatenate
+            # x = torch.mul(signal_embeddings + self.bias2, att_mask + self.bias1)
+            # factorized_embeddings = torch.cat([signal_embeddings, self.fsam_norm(x)], dim=1)
+
+            x = self.upsample(factorized_embeddings)
+            x = self.conv_decoder(x)
+        
+        else:
+            x = self.upsample(signal_embeddings)
+            x = self.conv_decoder(x)
+        
+        if self.debug:
+            print("     conv_decoder_x.shape", x.shape)
+        
+        if self.use_fsam:
+            return x, factorized_embeddings, att_mask, appx_error
+        else:
+            return x
+
+
+
+class Model(nn.Module):
+    def __init__(self, device, model_config, vec_len=-1, dropout=0.1, debug=False):
+        super(Model, self).__init__()
+        self.device = device
+        if vec_len == -1:
+            fs = int(model_config["data"]["target_fs"])
+            window_len = int(model_config["data"]["window_len_sec"])
+            self.vec_len = fs * window_len
+        else:
+            self.vec_len = vec_len
+
+        self.debug = debug
+
+        self.input_norm = nn.BatchNorm1d(1)
+        self.use_fsam = model_config["model_params"]["MD_FSAM"]
+
+        if self.debug:
+            print("nf:", nf)
+
+        self.encoder = encoder_block(1, dropout_rate=dropout, debug=debug)
+        self.sqa_head = SQ_Head(model_config, device=device, dropout_rate=dropout, debug=debug)
+
+        
+    def forward(self, x): # [batch, channels=1, length=30*10]
+        
+        [batch, channel, length] = x.shape
+
+        if self.debug:
+            print("Input.shape", x.shape)
+        
+        x = self.input_norm(x)
+        signal_embeddings = self.encoder(x)
+        if self.debug:
+            print("signal_embeddings.shape", signal_embeddings.shape)
+
+        if self.use_fsam:
+            sq_vec, factorized_embeddings, att_mask, appx_error = self.sqa_head(signal_embeddings)
+        else:
+            sq_vec = self.sqa_head(signal_embeddings)
+
+        if self.debug:
+            print("sq_vec.shape", sq_vec.shape)
+
+        # if self.use_fsam:
+        #     return sq_vec, signal_embeddings, factorized_embeddings, att_mask, appx_error
+        # else:
+        return sq_vec
+
+
 def test_model():
-    import os
+    from pathlib import Path
     import json
     from torch.utils.tensorboard import SummaryWriter
-    writer = SummaryWriter('test_run/Model')
 
-    config_path = os.path.join("utils", "sqa", "config", "SQAPhysMD.json")
-    if os.path.exists(config_path):
-        with open(config_path) as json_file:
+    runs_dir = Path('runs/test/SQAPhysMD')
+    runs_dir.mkdir(parents=True, exist_ok=True)
+    writer = SummaryWriter(str(runs_dir))
+
+    config_path = Path("configs").joinpath("SQAPhysMD.json")
+    # config_path = Path("configs").joinpath("SQAPhys.json")
+    if config_path.exists():
+        with open(str(config_path)) as json_file:
             model_config = json.load(json_file)
         json_file.close()
     else:
         print("Model config file not found")
         exit()
 
-    num_channels = model_config["model_params"]["INPUT_CHANNELS"]
+    num_channels = 1
     sampling_rate = model_config["data"]["target_fs"]
     seq_len = model_config["data"]["window_len_sec"]
     seq_samples = seq_len * sampling_rate
@@ -386,18 +680,25 @@ def test_model():
 
     device = ("cuda" if torch.cuda.is_available() else "cpu")
     print(f"Using {device} device")
-    sqPPG_model = Model(device, model_config).to(device)
+    sqPPG_model = Model(device, model_config, debug=True).to(device)
     sqPPG_model.eval()
 
     sig_vec = torch.rand((batch_size, num_channels, seq_samples)).to(device)
     # print(sig_vec.shape)
 
-    sig_out = sqPPG_model(sig_vec)
-    print(sig_out.shape)
+    embedding, seg = sqPPG_model(sig_vec)
+    print("Embeddings shape:", embedding.shape)
+    print("SQvec shape:", seg.shape)
     # print(sig_out)
 
-    writer.add_graph(sqPPG_model, sig_vec)
-    writer.close()
+    pytorch_total_params = sum(p.numel() for p in sqPPG_model.parameters())
+    print("Total parameters = ", pytorch_total_params)
+
+    pytorch_trainable_params = sum(p.numel() for p in sqPPG_model.parameters() if p.requires_grad)
+    print("Trainable parameters = ", pytorch_trainable_params)
+
+    # writer.add_graph(sqPPG_model, sig_vec)
+    # writer.close()
 
 if __name__ == "__main__":
 

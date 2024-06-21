@@ -4,28 +4,15 @@
         "window_len_sec": 10,
         "sq_resolution_sec": 0
     },
-    "train_params": {
-        "kernel_size": [
-            31,
-            21,
-            11
-        ]
-    },
     "model_params": {
-        "INPUT_CHANNELS": 1,
+        "MD_FSAM": false,
+        "MD_TYPE": "NMF",
+        "MD_R": 1,
         "MD_S": 1,
-        "MD_D": 64,
-        "MD_R": 8,
-        "TRAIN_STEPS": 6,
-        "EVAL_STEPS": 6,
+        "MD_STEPS": 4,
         "INV_T": 1,
         "ETA": 0.9,
-        "RAND_INIT": true,
-        "VERSION": "V2",
-        "HAM_TYPE": "NMF",
-        "DUAL": false,
-        "CHEESE_FACTOR": 1,
-        "ZERO_HAM": true
+        "RAND_INIT": true
     },
     "ckpt_name": "SQAPhysMD.pth"
 }
