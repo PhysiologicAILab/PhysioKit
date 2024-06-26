@@ -5,11 +5,11 @@
         "sq_resolution_sec": 0
     },
     "model_params": {
-        "MD_FSAM": false,
+        "MD_FSAM": true,
         "MD_TYPE": "NMF",
-        "MD_R": 1,
+        "MD_R": 5,
         "MD_S": 1,
-        "MD_STEPS": 4,
+        "MD_STEPS": 5,
         "INV_T": 1,
         "ETA": 0.9,
         "RAND_INIT": true

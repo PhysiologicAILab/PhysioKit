@@ -98,9 +98,9 @@ class sqaPPGInference(QThread):
                 if os.path.exists(ckpt_path):
                     checkpoint = torch.load(ckpt_path, map_location=self.device)
                     if "model_state_dict" in checkpoint:
-                        self.sqPPG_model.load_state_dict(checkpoint['model_state_dict'])
+                        self.sqPPG_model.load_state_dict(checkpoint['model_state_dict'], strict=False)
                     else:
-                        self.sqPPG_model.load_state_dict(checkpoint)
+                        self.sqPPG_model.load_state_dict(checkpoint, strict=False)
                     # optimizer.load_state_dict(checkpoint['optimizer_state_dict'])
                 else:
                     print("No checkpoint found, existing...")
@@ -122,12 +122,13 @@ class sqaPPGInference(QThread):
                     min_r_ppg = np.min(bvp_vec_1)
                     max_r_ppg = np.max(bvp_vec_1)
                     bvp_vec_1 = (bvp_vec_1 - min_r_ppg)/ (max_r_ppg - min_r_ppg)
+                    bvp_vec_1 = 2*bvp_vec_1 - 1
 
                     input_vec = torch.tensor(bvp_vec_1, dtype=torch.float)
                     input_vec = input_vec.unsqueeze(1)
 
                     input_vec = input_vec.to(self.device)        
-                    sqa_vec_1 = self.sqPPG_model(input_vec)
+                    _, sqa_vec_1 = self.sqPPG_model(input_vec)
                     sqa_vec_1 = sqa_vec_1.cpu().numpy().squeeze(1)
 
                     if self.nCh > 1:
@@ -137,6 +138,7 @@ class sqaPPGInference(QThread):
                         min_r_ppg = np.min(bvp_vec_2)
                         max_r_ppg = np.max(bvp_vec_2)
                         bvp_vec_2 = (bvp_vec_2 - min_r_ppg)/ (max_r_ppg - min_r_ppg)
+                        bvp_vec_2 = 2*bvp_vec_2 - 1
 
                         input_vec = torch.tensor(bvp_vec_2, dtype=torch.float)
                         input_vec = input_vec.unsqueeze(1)

@@ -3,25 +3,24 @@ import torch
 import torch.nn as nn
 import torch.nn.functional as F
 from torch.nn.modules.batchnorm import _BatchNorm
-from torch.nn.modules.instancenorm import _InstanceNorm
 
 import numpy as np
 
 # num_filters
-nf = [8, 16, 16, 16, 16]
+nf = [8, 16, 32, 64]
 
 model_config = {
     "MD_FSAM": True,
     "MD_TYPE": "NMF",
-    "MD_R": 1,
+    "MD_R": 5,
     "MD_S": 1,
-    "MD_STEPS": 4,
+    "MD_STEPS": 5,
     "INV_T": 1,
     "ETA": 0.9,
     "RAND_INIT": True,
     "in_channels": 1,
     "data_channels": 1,
-    "align_channels": 8,
+    "align_channels": nf[3]//2,
     "batch_size": 2,
     "samples": 300,
     "debug": True,
@@ -151,6 +150,16 @@ class _MatrixDecompositionBase(nn.Module):
         else:
             # (B * S, D, N) -> (B, C, L)
             x = x.view(B, C, L)
+
+            # # smoothening the temporal dimension
+            # # print("Intermediate-1 x", x.shape)
+            # sample_1 = x[:, :, 0].unsqueeze(2)
+            # sample_2 = x[:, :, -1].unsqueeze(2)
+            # x = torch.cat([sample_1, x, sample_2], dim=2)
+            # kernels = torch.FloatTensor([[[1, 1, 1]]]).repeat(N, N, 1).to(self.device)            
+            # bias = torch.FloatTensor(torch.zeros(N)).to(self.device)
+            # x = F.conv1d(x, kernels, bias=bias, padding="valid")
+            # x = (x - x.min())/x.std()
 
         # (B * L, D, R) -> (B, L, N, D)
         bases = bases.view(B, self.S, D, self.R)
@@ -288,7 +297,7 @@ class ConvBNReLU(nn.Module):
 
     def __init__(self, in_c, out_c, dim,
                  kernel_size=1, stride=1, padding='same',
-                 dilation=1, groups=1, act='relu', apply_bn=False, apply_act=True):
+                 dilation=1, groups=1, act='relu', apply_bn=True, apply_act=True):
         super().__init__()
 
         self.apply_bn = apply_bn
@@ -355,10 +364,10 @@ class ConvBNReLU(nn.Module):
 
     def forward(self, x):
         x = self.conv(x)
-        if self.apply_act:
-            x = self.act(x)
         if self.apply_bn:
             x = self.bn(x)
+        if self.apply_act:
+            x = self.act(x)
         return x
 
 
@@ -451,10 +460,6 @@ class FeaturesFactorizationModule(nn.Module):
                 m.weight.data.fill_(1)
                 if m.bias is not None:
                     m.bias.data.zero_()
-            elif isinstance(m, _InstanceNorm):
-                m.weight.data.fill_(1)
-                if m.bias is not None:
-                    m.bias.data.zero_()
 
     def forward(self, x):
         x = self.pre_conv_block(x)
@@ -469,22 +474,6 @@ class FeaturesFactorizationModule(nn.Module):
             self.md_block.online_update(bases)
 
 
-class ConvBlock(nn.Module):
-    def __init__(self, in_channel, out_channel, kernel_size, stride, padding, dilation=1, group=False):
-        super(ConvBlock, self).__init__()
-        if group:
-            self.conv_block = nn.Sequential(
-                nn.Conv1d(in_channel, out_channel, kernel_size, stride, padding, dilation=dilation, groups=in_channel),
-            )
-        else:
-            self.conv_block = nn.Sequential(
-                nn.Conv1d(in_channel, out_channel, kernel_size, stride, padding, dilation=dilation),
-            )
-
-    def forward(self, x):
-        return self.conv_block(x)
-
-
 class encoder_block(nn.Module):
     def __init__(self, inCh, dropout_rate=0.1, debug=False):
         super(encoder_block, self).__init__()
@@ -493,28 +482,30 @@ class encoder_block(nn.Module):
         self.debug = debug
 
         self.encoder = nn.Sequential(
-            nn.Conv1d(inCh, nf[0], 11, 1, 5),
-            nn.Conv1d(nf[0], nf[1], 7, 1, 3),
-            nn.ELU(inplace=True),
+            nn.Conv1d(inCh, nf[0], 21, 1, 10),
+            nn.Conv1d(nf[0], nf[0], 21, 1, 10),
+            nn.BatchNorm1d(nf[0]),
+            nn.ReLU(inplace=True),
+            nn.MaxPool1d(kernel_size=2, stride=2),
+            # nn.Dropout1d(p=dropout_rate),
+
+            nn.Conv1d(nf[0], nf[0], 11, 1, 5),
+            nn.Conv1d(nf[0], nf[1], 11, 1, 5),
             nn.BatchNorm1d(nf[1]),
-            nn.Dropout1d(p=dropout_rate),
+            nn.ReLU(inplace=True),
+            nn.MaxPool1d(kernel_size=2, stride=2),
+            # nn.Dropout1d(p=dropout_rate),
 
-            nn.Conv1d(nf[1], nf[1], 7, 5, 3),
-            nn.Conv1d(nf[1], nf[2], 7, 1, 3),
-            nn.ELU(inplace=True),
+            nn.Conv1d(nf[1], nf[1], 11, 1, 5),
+            nn.Conv1d(nf[1], nf[2], 5, 1, 2),
             nn.BatchNorm1d(nf[2]),
+            nn.ReLU(inplace=True),
             nn.Dropout1d(p=dropout_rate),
 
-            nn.Conv1d(nf[2], nf[2], 5, 3, 2),
-            nn.Conv1d(nf[2], nf[3], 5, 1, 2),
-            nn.ELU(inplace=True),
+            nn.Conv1d(nf[2], nf[2], 5, 1, 2),
+            nn.Conv1d(nf[2], nf[3], 3, 1, 1),
             nn.BatchNorm1d(nf[3]),
-            nn.Dropout1d(p=dropout_rate),
-
-            nn.Conv1d(nf[3], nf[3], 3, 1, 1),
-            nn.Conv1d(nf[3], nf[4], 3, 1, 1),
-            nn.ELU(inplace=True),
-            nn.BatchNorm1d(nf[4])
+            nn.ReLU(inplace=True),
         )
 
     def forward(self, x):
@@ -525,9 +516,26 @@ class encoder_block(nn.Module):
         return x
 
 
+class ASPP(nn.Module):
+    def __init__(self, in_channel=nf[3], depth=1):
+        super(ASPP,self).__init__()
+        self.atrous_block1 = nn.Conv1d(in_channel, depth, 3, 1, padding=1, dilation=1)
+        self.atrous_block2 = nn.Conv1d(in_channel, depth, 3, 1, padding=2, dilation=2)
+        self.atrous_block3 = nn.Conv1d(in_channel, depth, 5, 1, padding=6, dilation=3)
+        self.atrous_block4 = nn.Conv1d(in_channel, depth, 7, 1, padding=12, dilation=4)
+        self.conv_1x1_output = nn.Conv1d(depth * 4, depth, 1, 1)
+ 
+    def forward(self, x):
+        atrous_block1 = self.atrous_block1(x)
+        atrous_block2 = self.atrous_block2(x)
+        atrous_block3 = self.atrous_block3(x)
+        atrous_block4 = self.atrous_block4(x)
+        net = self.conv_1x1_output(
+            torch.cat([atrous_block1, atrous_block2, atrous_block3, atrous_block4], dim=1))
+        return net
 
 class SQ_Head(nn.Module):
-    def __init__(self, md_config, device, dropout_rate=0.1, debug=False):
+    def __init__(self, md_config, vec_len, device, dropout_rate=0.1, debug=False):
         super(SQ_Head, self).__init__()
         self.debug = debug
 
@@ -535,22 +543,18 @@ class SQ_Head(nn.Module):
         self.md_type = md_config["model_params"]["MD_TYPE"]
 
         if self.use_fsam:
-            inC = nf[4]
+            inC = nf[3]
             self.fsam = FeaturesFactorizationModule(inC, device, md_config, dim="1D", debug=debug)
-            self.fsam_norm = nn.BatchNorm1d(inC)
-            self.bias1 = nn.Parameter(torch.tensor(1.0), requires_grad=True).to(device)
+            self.fsam_norm = nn.InstanceNorm1d(inC)
+            self.bias1 = nn.Parameter(torch.tensor(1.0), requires_grad=False).to(device)
             # self.bias2 = nn.Parameter(torch.tensor(2.0), requires_grad=False).to(device)
         else:
-            inC = nf[4]
-
-        self.upsample = nn.Upsample(scale_factor=15)
+            inC = nf[3]
 
         self.conv_decoder = nn.Sequential(
-            nn.Conv1d(nf[4], nf[0], 3, 1, 1),
-            nn.ELU(inplace=True),
-            nn.BatchNorm1d(nf[0]),
-
-            nn.Conv1d(nf[0], 1, 3, 1, 1),
+            nn.Upsample(size=vec_len),
+            ASPP(nf[3]),
+            nn.Conv1d(1, 1, 3, 1, 1),
             nn.Sigmoid()
         )
 
@@ -561,10 +565,7 @@ class SQ_Head(nn.Module):
             print("     signal_embeddings.shape", signal_embeddings.shape)
 
         if self.use_fsam:
-            if self.md_type == "NMF":
-                att_mask, appx_error = self.fsam(signal_embeddings - signal_embeddings.min())  # to make it positive
-            else:
-                att_mask, appx_error = self.fsam(signal_embeddings)
+            att_mask, appx_error = self.fsam(signal_embeddings - signal_embeddings.min())
 
             if self.debug:
                 print("att_mask.shape", att_mask.shape)
@@ -573,26 +574,25 @@ class SQ_Head(nn.Module):
             # factorized_embeddings = self.fsam_norm(att_mask)
 
             # # Residual connection: 
-            # factorized_embeddings = signal_embeddings + self.fsam_norm(att_mask)
+            # # factorized_embeddings = signal_embeddings + self.fsam_norm(att_mask)
+            # factorized_embeddings = signal_embeddings + att_mask
 
-            # # Multiplication
-            x = torch.mul(signal_embeddings - signal_embeddings.min() + self.bias1, att_mask - att_mask.min() + self.bias1)
-            factorized_embeddings = self.fsam_norm(x)
+            # # # Multiplication
+            # x = torch.mul(signal_embeddings - signal_embeddings.min() + self.bias1, att_mask - att_mask.min() + self.bias1)
+            # factorized_embeddings = self.fsam_norm(x)
 
             # # Multiplication with Residual connection
-            # x = torch.mul(signal_embeddings - signal_embeddings.min() + self.bias1, att_mask - att_mask.min() + self.bias1)
-            # factorized_embeddings = signal_embeddings + self.fsam_norm(x)
-            
+            x = torch.mul(signal_embeddings - signal_embeddings.min() + self.bias1, att_mask - att_mask.min() + self.bias1)
+            factorized_embeddings = signal_embeddings + self.fsam_norm(x)
+
             # # # Concatenate
             # x = torch.mul(signal_embeddings + self.bias2, att_mask + self.bias1)
             # factorized_embeddings = torch.cat([signal_embeddings, self.fsam_norm(x)], dim=1)
 
-            x = self.upsample(factorized_embeddings)
-            x = self.conv_decoder(x)
+            x = self.conv_decoder(factorized_embeddings)
         
         else:
-            x = self.upsample(signal_embeddings)
-            x = self.conv_decoder(x)
+            x = self.conv_decoder(signal_embeddings)
         
         if self.debug:
             print("     conv_decoder_x.shape", x.shape)
@@ -601,7 +601,6 @@ class SQ_Head(nn.Module):
             return x, factorized_embeddings, att_mask, appx_error
         else:
             return x
-
 
 
 class Model(nn.Module):
@@ -617,14 +616,13 @@ class Model(nn.Module):
 
         self.debug = debug
 
-        self.input_norm = nn.BatchNorm1d(1)
         self.use_fsam = model_config["model_params"]["MD_FSAM"]
 
         if self.debug:
             print("nf:", nf)
 
         self.encoder = encoder_block(1, dropout_rate=dropout, debug=debug)
-        self.sqa_head = SQ_Head(model_config, device=device, dropout_rate=dropout, debug=debug)
+        self.sqa_head = SQ_Head(model_config, self.vec_len, device=device, dropout_rate=dropout, debug=debug)
 
         
     def forward(self, x): # [batch, channels=1, length=30*10]
@@ -634,23 +632,21 @@ class Model(nn.Module):
         if self.debug:
             print("Input.shape", x.shape)
         
-        x = self.input_norm(x)
-        signal_embeddings = self.encoder(x)
+        # x = self.input_norm(x)
+        embeddings = self.encoder(x)
+
         if self.debug:
-            print("signal_embeddings.shape", signal_embeddings.shape)
+            print("embeddings.shape", embeddings.shape)
 
         if self.use_fsam:
-            sq_vec, factorized_embeddings, att_mask, appx_error = self.sqa_head(signal_embeddings)
+            sq_vec, embeddings, att_mask, appx_error = self.sqa_head(embeddings)
         else:
-            sq_vec = self.sqa_head(signal_embeddings)
+            sq_vec = self.sqa_head(embeddings)
 
         if self.debug:
             print("sq_vec.shape", sq_vec.shape)
 
-        # if self.use_fsam:
-        #     return sq_vec, signal_embeddings, factorized_embeddings, att_mask, appx_error
-        # else:
-        return sq_vec
+        return (embeddings, sq_vec)
 
 
 def test_model():
@@ -662,8 +658,8 @@ def test_model():
     runs_dir.mkdir(parents=True, exist_ok=True)
     writer = SummaryWriter(str(runs_dir))
 
-    config_path = Path("configs").joinpath("SQAPhysMD.json")
-    # config_path = Path("configs").joinpath("SQAPhys.json")
+    config_path = Path("configs").joinpath("SQAPhysMD_Aug_CL.json")
+    # config_path = Path("configs").joinpath("SQAPhys_Aug_CL.json")
     if config_path.exists():
         with open(str(config_path)) as json_file:
             model_config = json.load(json_file)
